@@ -215,9 +215,9 @@ void store_cleanup(struct store *store)
 	close(store->fd);
 }
 
-static int find_empty_block(struct store *store, int start)
+static int64_t find_empty_block(struct store *store, int start)
 {
-	int i;
+	int64_t i;
 
 	for (i = start; i < NUM_BLOCKS; i++) {
 		if (!block_is_occupied(&store->blocks[i]))
@@ -232,23 +232,23 @@ static inline int floor_div(int a, int b)
 	return ((a - 1) / b) + 1;
 }
 
-static int store_get_index(struct store *store,
-		unsigned char *key, size_t key_len)
+static int64_t store_get_index(struct store *store,
+		unsigned char *key, size_t key_len,
+		uint64_t hash, int64_t *prev_index)
 {
-	uint64_t hash;
 	uint64_t keypos;
+	int64_t lastpos;
 	unsigned char actual_key[MAX_KEY_SIZE];
 	unsigned int actual_len;
 	struct block *blk;
 
-	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
-
-	if (store->entries[hash] == NO_ADDR)
-		return -1;
-
+	lastpos = -1;
 	keypos = store->entries[hash];
 
-	for (;;) {
+	if (keypos == NO_ADDR)
+		goto nothing_found;
+
+	do {
 		if (keypos >= NUM_BLOCKS)
 			break;
 		blk = &store->blocks[keypos];
@@ -258,30 +258,31 @@ static int store_get_index(struct store *store,
 		block_data_get(blk, actual_key);
 
 		if (actual_len == key_len &&
-				memcmp(key, actual_key, key_len) == 0)
+				memcmp(key, actual_key, key_len) == 0) {
+			if (prev_index != NULL)
+				*prev_index = lastpos;
 			return keypos;
+		}
 
-		if (block_is_last(blk))
-			break;
-
+		lastpos = keypos;
 		keypos = block_extra_ptr_get(blk);
-	}
+	} while (!block_is_last(blk));
 
+nothing_found:
+	if (prev_index != NULL)
+		*prev_index = lastpos;
 	return -1;
 }
 
-static int store_put_empty(struct store *store,
-		unsigned char *key, size_t key_len,
-		unsigned char *value, size_t value_len,
-		uint64_t hash, int req_blocks)
+static int allocate_blocks(struct store *store,
+		int64_t *keypos, int64_t *datapos,
+		size_t req_blocks)
 {
+	int64_t lastpos;
 	int i;
-	int lastpos, keypos, datapos[req_blocks];
-	struct block *keyblk, *valblk;
-	unsigned char *data = value;
 
-	lastpos = keypos = find_empty_block(store, 0);
-	if (keypos < 0)
+	lastpos = keypos[0] = find_empty_block(store, 0);
+	if (lastpos < 0)
 		return -1;
 
 	for (i = 0; i < req_blocks; i++) {
@@ -289,6 +290,18 @@ static int store_put_empty(struct store *store,
 		if (lastpos < 0)
 			return -1;
 	}
+
+	return 0;
+}
+
+static void fill_blocks(struct store *store,
+		unsigned char *key, size_t key_len,
+		unsigned char *value, size_t value_len,
+		int64_t keypos, int64_t *datapos, size_t req_blocks)
+{
+	struct block *keyblk, *valblk;
+	unsigned char *data = value;
+	int i;
 
 	keyblk = &store->blocks[keypos];
 
@@ -313,18 +326,72 @@ static int store_put_empty(struct store *store,
 	block_unset_key(valblk);
 
 	block_data_set(valblk, data, value_len % BLOCK_DATA_SIZE);
+}
 
-	store->entries[hash] = keypos;
+static void erase_blocks(struct store *store, struct block *blk)
+{
+	uint64_t keypos;
+	block_unset_key(blk);
+	block_unset_occupied(blk);
 
-	return 0;
+	do {
+		keypos = block_ptr_get(blk);
+		blk = &store->blocks[keypos];
+		block_unset_occupied(blk);
+	} while (!block_is_last(blk));
+}
+
+static void unlink_blocks(struct store *store, uint64_t hash,
+		int64_t keypos, int64_t lastpos)
+{
+	struct block *blk, *lastblk;
+	int64_t nextpos;
+
+	blk = &store->blocks[keypos];
+	nextpos = block_extra_ptr_get(blk);
+
+	if (lastpos >= 0) {
+		lastblk = &store->blocks[keypos];
+		if (block_is_last(blk))
+			block_set_last(lastblk);
+		else
+			block_extra_ptr_set(lastblk, nextpos);
+	} else {
+		if (block_is_last(blk))
+			store->entries[hash] = NO_ADDR;
+		else
+			store->entries[hash] = nextpos;
+	}
+
+	erase_blocks(store, blk);
+}
+
+static int64_t find_last_key(struct store *store, int64_t start)
+{
+	struct block *blk;
+	int64_t keypos;
+
+	keypos = start;
+	blk = &store->blocks[keypos];
+
+	while (!block_is_last(blk)) {
+		if (!block_is_occupied(blk) || !block_is_key(blk))
+			return -1;
+		keypos = block_extra_ptr_get(blk);
+		blk = &store->blocks[keypos];
+	}
+
+	return keypos;
 }
 
 int store_put(struct store *store,
 		unsigned char *key, size_t key_len,
 		unsigned char *value, size_t value_len)
 {
-	int req_blocks = floor_div(value_len, BLOCK_DATA_SIZE);
+	size_t req_blocks = floor_div(value_len, BLOCK_DATA_SIZE);
 	uint64_t hash;
+	int64_t lastpos, keypos, datapos[req_blocks];
+	struct block *blk;
 
 	if (key_len > MAX_KEY_SIZE || value_len > MAX_VALUE_SIZE)
 		return -1;
@@ -333,12 +400,31 @@ int store_put(struct store *store,
 		return -1;
 
 	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
+	keypos = store_get_index(store, key, key_len, hash, &lastpos);
 
-	if (store->entries[hash] == NO_ADDR)
-		return store_put_empty(
-				store, key, key_len,
-				value, value_len,
-				hash, req_blocks);
+	/* if an entry with that key already exists, we have to unlink it */
+	if (keypos >= 0) {
+		unlink_blocks(store, hash, keypos, lastpos);
+		if (store->entries[hash] == NO_ADDR)
+			lastpos = -1;
+		else
+			lastpos = find_last_key(store, store->entries[hash]);
+	}
+
+	if (allocate_blocks(store, &keypos, datapos, req_blocks) < 0)
+		return -1;
+
+	/* if this is going to be the only block, make sure to set the entry */
+	if (lastpos == -1)
+		store->entries[hash] = keypos;
+	else {
+		blk = &store->blocks[lastpos];
+		block_unset_last(blk);
+		block_extra_ptr_set(blk, keypos);
+	}
+
+	fill_blocks(store, key, key_len, value, value_len,
+			keypos, datapos, req_blocks);
 
 	return 0;
 }
@@ -346,12 +432,14 @@ int store_put(struct store *store,
 int store_get(struct store *store, unsigned char *key, size_t key_len,
 		unsigned char* dest, size_t dest_len)
 {
-	int keypos, valpos;
+	int64_t keypos, valpos;
+	uint64_t hash;
 	struct block *blk;
 	unsigned int blk_len;
 	unsigned int actual_len = 0;
 
-	keypos = store_get_index(store, key, key_len);
+	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
+	keypos = store_get_index(store, key, key_len, hash, NULL);
 	if (keypos < 0)
 		return -1;
 	blk = &store->blocks[keypos];
@@ -372,4 +460,20 @@ int store_get(struct store *store, unsigned char *key, size_t key_len,
 	} while (!block_is_last(blk));
 
 	return actual_len;
+}
+
+int store_del(struct store *store, unsigned char *key, size_t key_len)
+{
+	int64_t keypos, lastpos;
+	uint64_t hash;
+
+	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
+	keypos = store_get_index(store, key, key_len, hash, &lastpos);
+
+	if (keypos < 0)
+		return -1;
+	
+	unlink_blocks(store, hash, keypos, lastpos);
+
+	return 0;
 }

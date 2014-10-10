@@ -46,5 +46,6 @@ int store_put(struct store *store,
 		unsigned char *value, size_t value_len);
 int store_get(struct store *store, unsigned char *key, size_t key_len,
 		unsigned char* dest, size_t dest_len);
+int store_del(struct store *store, unsigned char *key, size_t key_len);
 
 #endif
