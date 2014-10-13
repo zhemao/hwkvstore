@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #define BLOCK_SIZE 1024
 #define BLOCK_DATA_SIZE (1024 - 9)
@@ -31,6 +32,7 @@ struct block {
 struct store {
 	uint64_t entries[NUM_ENTRIES];
 	struct block *blocks;
+	pthread_rwlock_t rwlock;
 	int fd;
 };
 

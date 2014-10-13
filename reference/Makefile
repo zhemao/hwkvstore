@@ -1,4 +1,4 @@
-LDFLAGS=-g
+LDFLAGS=-g -lpthread
 CFLAGS=-g -Wall
 
 test: test.o hash.o storage.o

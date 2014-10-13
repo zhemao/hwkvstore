@@ -190,14 +190,20 @@ int store_init(struct store *store)
 	void *ptr;
 	int i;
 
-	store->fd = open("/dev/zero", O_RDWR);
-	if (store->fd < 0)
+	if (pthread_rwlock_init(&store->rwlock, NULL))
 		return -1;
+
+	store->fd = open("/dev/zero", O_RDWR);
+	if (store->fd < 0) {
+		pthread_rwlock_destroy(&store->rwlock);
+		return -1;
+	}
 
 	ptr = mmap(0, BLOCK_SIZE * NUM_BLOCKS,
 		PROT_READ|PROT_WRITE, MAP_PRIVATE, store->fd, 0);
 	if (ptr == MAP_FAILED) {
 		close(store->fd);
+		pthread_rwlock_destroy(&store->rwlock);
 		return -1;
 	}
 	store->blocks = (struct block *) ptr;
@@ -211,6 +217,7 @@ int store_init(struct store *store)
 
 void store_cleanup(struct store *store)
 {
+	pthread_rwlock_destroy(&store->rwlock);
 	munmap((void *) store->blocks, BLOCK_SIZE * NUM_BLOCKS);
 	close(store->fd);
 }
@@ -384,6 +391,13 @@ static int64_t find_last_key(struct store *store, int64_t start)
 	return keypos;
 }
 
+static void unlock_or_abort(pthread_rwlock_t *rwlock) {
+	if (pthread_rwlock_unlock(rwlock)) {
+		fprintf(stderr, "Unable to release rwlock\n");
+		abort();
+	}
+}
+
 int store_put(struct store *store,
 		unsigned char *key, size_t key_len,
 		unsigned char *value, size_t value_len)
@@ -392,11 +406,16 @@ int store_put(struct store *store,
 	uint64_t hash;
 	int64_t lastpos, keypos, datapos[req_blocks];
 	struct block *blk;
+	int retcode = -1;
+
 
 	if (key_len > MAX_KEY_SIZE || value_len > MAX_VALUE_SIZE)
 		return -1;
 
 	if (req_blocks + 1 > NUM_BLOCKS)
+		return -1;
+
+	if (pthread_rwlock_wrlock(&store->rwlock))
 		return -1;
 
 	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
@@ -412,7 +431,7 @@ int store_put(struct store *store,
 	}
 
 	if (allocate_blocks(store, &keypos, datapos, req_blocks) < 0)
-		return -1;
+		goto exit_unlock;
 
 	/* if this is going to be the only block, make sure to set the entry */
 	if (lastpos == -1)
@@ -425,8 +444,10 @@ int store_put(struct store *store,
 
 	fill_blocks(store, key, key_len, value, value_len,
 			keypos, datapos, req_blocks);
-
-	return 0;
+	retcode = 0;
+exit_unlock:
+	unlock_or_abort(&store->rwlock);
+	return retcode;
 }
 
 int store_get(struct store *store, unsigned char *key, size_t key_len,
@@ -437,21 +458,25 @@ int store_get(struct store *store, unsigned char *key, size_t key_len,
 	struct block *blk;
 	unsigned int blk_len;
 	unsigned int actual_len = 0;
+	int retcode = -1;
+
+	if (pthread_rwlock_rdlock(&store->rwlock))
+		return -1;
 
 	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
 	keypos = store_get_index(store, key, key_len, hash, NULL);
 	if (keypos < 0)
-		return -1;
+		goto unlock_exit;
 	blk = &store->blocks[keypos];
 	valpos = block_ptr_get(blk);
 
 	do {
 		blk = &store->blocks[valpos];
 		if (block_is_key(blk) || !block_is_occupied(blk))
-			return -1;
+			goto unlock_exit;
 		blk_len = block_length_get(blk);
 		if (blk_len > dest_len)
-			return -1;
+			goto unlock_exit;
 		block_data_get(blk, dest);
 		dest += blk_len;
 		dest_len -= blk_len;
@@ -459,21 +484,31 @@ int store_get(struct store *store, unsigned char *key, size_t key_len,
 		valpos = block_ptr_get(blk);
 	} while (!block_is_last(blk));
 
-	return actual_len;
+	retcode = actual_len;
+unlock_exit:
+	unlock_or_abort(&store->rwlock);
+	return retcode;
 }
 
 int store_del(struct store *store, unsigned char *key, size_t key_len)
 {
 	int64_t keypos, lastpos;
 	uint64_t hash;
+	int retcode = -1;
+
+	if (pthread_rwlock_wrlock(&store->rwlock))
+		return -1;
 
 	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
 	keypos = store_get_index(store, key, key_len, hash, &lastpos);
 
 	if (keypos < 0)
-		return -1;
-	
-	unlink_blocks(store, hash, keypos, lastpos);
+		goto unlock_exit;
 
-	return 0;
+	unlink_blocks(store, hash, keypos, lastpos);
+	retcode = 0;
+
+unlock_exit:
+	unlock_or_abort(&store->rwlock);
+	return retcode;
 }
