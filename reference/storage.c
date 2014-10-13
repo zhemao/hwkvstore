@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-unsigned int block_length_get(struct block *blk)
+static unsigned int block_length_get(struct block *blk)
 {
 	unsigned int shift1 = LEN_SIZE % 8;
 	unsigned int mask1 = (1 << shift1) - 1;
@@ -22,7 +22,7 @@ unsigned int block_length_get(struct block *blk)
 	return length;
 }
 
-void block_length_set(struct block *blk, unsigned int length)
+static void block_length_set(struct block *blk, unsigned int length)
 {
 	unsigned int shift1 = LEN_SIZE % 8;
 	unsigned int mask1 = (1 << shift1) - 1;
@@ -34,7 +34,7 @@ void block_length_set(struct block *blk, unsigned int length)
 	blk->lenptr[1] |= (length & mask1) << shift2;
 }
 
-unsigned long block_ptr_get(struct block *blk)
+static unsigned long block_ptr_get(struct block *blk)
 {
 	unsigned int shift = 8 - (LEN_SIZE % 8);
 	unsigned int mask = (1 << shift) - 1;
@@ -51,7 +51,7 @@ unsigned long block_ptr_get(struct block *blk)
 	return ptr;
 }
 
-void block_ptr_set(struct block *blk, unsigned long ptr)
+static void block_ptr_set(struct block *blk, unsigned long ptr)
 {
 	unsigned int shift1 = LEN_SIZE % 8;
 	unsigned int mask1 = (1 << shift1) - 1;
@@ -68,7 +68,7 @@ void block_ptr_set(struct block *blk, unsigned long ptr)
 	}
 }
 
-unsigned long block_extra_ptr_get(struct block *blk)
+static unsigned long block_extra_ptr_get(struct block *blk)
 {
 	unsigned long ptr = 0;
 	int i;
@@ -80,7 +80,7 @@ unsigned long block_extra_ptr_get(struct block *blk)
 	return ptr;
 }
 
-void block_extra_ptr_set(struct block *blk, unsigned long ptr)
+static void block_extra_ptr_set(struct block *blk, unsigned long ptr)
 {
 
 	int i;
@@ -151,7 +151,7 @@ static inline void block_unset_last(struct block *blk)
 	return block_unset_status(blk, STATUS_LAST);
 }
 
-int block_data_get(struct block *blk, void *dest)
+static int block_data_get(struct block *blk, void *dest)
 {
 	int len = block_length_get(blk);
 	void *data_start = blk->data;
@@ -166,7 +166,7 @@ int block_data_get(struct block *blk, void *dest)
 	return len;
 }
 
-int block_data_set(struct block *blk, void *src, size_t len)
+static int block_data_set(struct block *blk, void *src, size_t len)
 {
 	int available = sizeof(blk->data);
 	void *data_start = blk->data;

@@ -23,11 +23,6 @@ struct block {
 	unsigned char data[BLOCK_DATA_SIZE];
 };
 
-unsigned int block_length_get(struct block *blk);
-void block_length_set(struct block *blk, unsigned int length);
-unsigned long block_ptr_get(struct block *blk);
-void block_ptr_set(struct block *blk, unsigned long ptr);
-
 #define NUM_ENTRIES 1024
 #define NUM_BLOCKS (1 << 16)
 #define HASH_FUNC(msg, len) pearson_hash(msg, len)
