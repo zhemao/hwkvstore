@@ -10,27 +10,32 @@
 #define LEN_SIZE 10
 #define ADDR_SIZE 54
 #define ADDR_SIZE_BYTES 7
-#define STATUS_KEY 7
 #define STATUS_LAST 6
 #define STATUS_OCCUPIED 5
-#define MAX_KEY_SIZE (BLOCK_DATA_SIZE - ADDR_SIZE_BYTES)
+#define MAX_KEY_SIZE 255
 #define MAX_VALUE_SIZE (4 * 1024 * 1024)
 
 struct block {
-	unsigned char status;
+	uint8_t status;
 	/* We use a char array instead of uint64_t so that no padding is
 	 * inserted. */
-	unsigned char lenptr[8];
-	unsigned char data[BLOCK_DATA_SIZE];
+	uint8_t lenptr[8];
+	uint8_t data[BLOCK_DATA_SIZE];
+};
+
+struct key_entry {
+	uint8_t length;
+	uint8_t data[MAX_KEY_SIZE];
 };
 
 #define NUM_ENTRIES 1024
 #define NUM_BLOCKS (1 << 16)
-#define HASH_FUNC(msg, len) pearson_hash(msg, len)
-#define NO_ADDR 0xffffffff
+#define PRIMARY_HASH(msg, len) pearson_hash1(msg, len)
+#define SECONDARY_HASH(msg, len) pearson_hash2(msg, len)
 
 struct store {
-	uint64_t entries[NUM_ENTRIES];
+	uint64_t addresses[NUM_ENTRIES];
+	struct key_entry *keys;
 	struct block *blocks;
 	pthread_rwlock_t rwlock;
 	int fd;

@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-uint64_t pearson_hash(const unsigned char *mess, size_t len);
+#define HASH_BYTES 2
+typedef uint16_t hash_t;
+
+hash_t pearson_hash1(const uint8_t *mess, size_t len);
+hash_t pearson_hash2(const uint8_t *mess, size_t len);
 
 #endif

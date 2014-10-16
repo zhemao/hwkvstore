@@ -68,29 +68,6 @@ static void block_ptr_set(struct block *blk, unsigned long ptr)
 	}
 }
 
-static unsigned long block_extra_ptr_get(struct block *blk)
-{
-	unsigned long ptr = 0;
-	int i;
-
-	for (i = 0; i < ADDR_SIZE_BYTES; i++) {
-		ptr <<= 8;
-		ptr |= blk->data[i];
-	}
-	return ptr;
-}
-
-static void block_extra_ptr_set(struct block *blk, unsigned long ptr)
-{
-
-	int i;
-
-	for (i = ADDR_SIZE_BYTES - 1; i >= 0; i--) {
-		blk->data[i] = ptr & 0xff;
-		ptr >>= 8;
-	}
-}
-
 static inline int block_check_status(struct block *blk, int shift)
 {
 	return (blk->status & (1 << shift)) != 0;
@@ -104,21 +81,6 @@ static inline void block_set_status(struct block *blk, int shift)
 static inline void block_unset_status(struct block *blk, int shift)
 {
 	blk->status &= ~(1 << shift);
-}
-
-static inline int block_is_key(struct block *blk)
-{
-	return block_check_status(blk, STATUS_KEY);
-}
-
-static inline void block_set_key(struct block *blk)
-{
-	return block_set_status(blk, STATUS_KEY);
-}
-
-static inline void block_unset_key(struct block *blk)
-{
-	return block_unset_status(blk, STATUS_KEY);
 }
 
 static inline int block_is_occupied(struct block *blk)
@@ -159,9 +121,6 @@ static int block_data_get(struct block *blk, void *dest)
 	if (!block_is_occupied(blk))
 		return -1;
 
-	if (block_is_key(blk))
-		data_start += ADDR_SIZE_BYTES;
-
 	memcpy(dest, data_start, len);
 	return len;
 }
@@ -170,11 +129,6 @@ static int block_data_set(struct block *blk, void *src, size_t len)
 {
 	int available = sizeof(blk->data);
 	void *data_start = blk->data;
-
-	if (block_is_key(blk)) {
-		available -= ADDR_SIZE_BYTES;
-		data_start += ADDR_SIZE_BYTES;
-	}
 
 	if (len > available)
 		return -1;
@@ -193,6 +147,12 @@ int store_init(struct store *store)
 	if (pthread_rwlock_init(&store->rwlock, NULL))
 		return -1;
 
+	store->keys = calloc(NUM_ENTRIES, sizeof(struct key_entry));
+	if (store->keys == NULL) {
+		pthread_rwlock_destroy(&store->rwlock);
+		return -1;
+	}
+
 	store->fd = open("/dev/zero", O_RDWR);
 	if (store->fd < 0) {
 		pthread_rwlock_destroy(&store->rwlock);
@@ -208,9 +168,8 @@ int store_init(struct store *store)
 	}
 	store->blocks = (struct block *) ptr;
 
-	for (i = 0; i < NUM_ENTRIES; i++) {
-		store->entries[i] = NO_ADDR;
-	}
+	for (i = 0; i < NUM_ENTRIES; i++)
+		store->keys[i].length = 0;
 
 	return 0;
 }
@@ -219,6 +178,7 @@ void store_cleanup(struct store *store)
 {
 	pthread_rwlock_destroy(&store->rwlock);
 	munmap((void *) store->blocks, BLOCK_SIZE * NUM_BLOCKS);
+	free(store->keys);
 	close(store->fd);
 }
 
@@ -239,90 +199,34 @@ static inline int floor_div(int a, int b)
 	return ((a - 1) / b) + 1;
 }
 
-static int64_t store_get_index(struct store *store,
-		unsigned char *key, size_t key_len,
-		uint64_t hash, int64_t *prev_index)
-{
-	uint64_t keypos;
-	int64_t lastpos;
-	unsigned char actual_key[MAX_KEY_SIZE];
-	unsigned int actual_len;
-	struct block *blk;
-
-	lastpos = -1;
-	keypos = store->entries[hash];
-
-	if (keypos == NO_ADDR)
-		goto nothing_found;
-
-	do {
-		if (keypos >= NUM_BLOCKS)
-			break;
-		blk = &store->blocks[keypos];
-		if (!block_is_key(blk) || !block_is_occupied(blk))
-			return -1;
-		actual_len = block_length_get(blk);
-		block_data_get(blk, actual_key);
-
-		if (actual_len == key_len &&
-				memcmp(key, actual_key, key_len) == 0) {
-			if (prev_index != NULL)
-				*prev_index = lastpos;
-			return keypos;
-		}
-
-		lastpos = keypos;
-		keypos = block_extra_ptr_get(blk);
-	} while (!block_is_last(blk));
-
-nothing_found:
-	if (prev_index != NULL)
-		*prev_index = lastpos;
-	return -1;
-}
-
 static int allocate_blocks(struct store *store,
-		int64_t *keypos, int64_t *datapos,
-		size_t req_blocks)
+		uint64_t *datapos, size_t req_blocks)
 {
-	int64_t lastpos;
+	int64_t lastpos = 0;
 	int i;
 
-	lastpos = keypos[0] = find_empty_block(store, 0);
-	if (lastpos < 0)
-		return -1;
-
 	for (i = 0; i < req_blocks; i++) {
-		lastpos = datapos[i] = find_empty_block(store, lastpos + 1);
+		lastpos = find_empty_block(store, lastpos);
 		if (lastpos < 0)
 			return -1;
+		datapos[i] = lastpos;
+		lastpos++;
 	}
 
 	return 0;
 }
 
 static void fill_blocks(struct store *store,
-		unsigned char *key, size_t key_len,
-		unsigned char *value, size_t value_len,
-		int64_t keypos, int64_t *datapos, size_t req_blocks)
+		uint8_t *value, size_t value_len,
+		uint64_t *datapos, size_t req_blocks)
 {
-	struct block *keyblk, *valblk;
+	struct block *valblk;
 	unsigned char *data = value;
 	int i;
-
-	keyblk = &store->blocks[keypos];
-
-	block_set_last(keyblk);
-	block_set_key(keyblk);
-
-	block_ptr_set(keyblk, datapos[0]);
-	block_data_set(keyblk, key, key_len);
 
 	for (i = 0; i < req_blocks - 1; i++) {
 		valblk = &store->blocks[datapos[i]];
 		block_unset_last(valblk);
-		block_unset_key(valblk);
-
 		block_ptr_set(valblk, datapos[i + 1]);
 		block_data_set(valblk, data, BLOCK_DATA_SIZE);
 		data += BLOCK_DATA_SIZE;
@@ -330,65 +234,23 @@ static void fill_blocks(struct store *store,
 
 	valblk = &store->blocks[datapos[req_blocks - 1]];
 	block_set_last(valblk);
-	block_unset_key(valblk);
-
 	block_data_set(valblk, data, value_len % BLOCK_DATA_SIZE);
 }
 
-static void erase_blocks(struct store *store, struct block *blk)
-{
-	uint64_t keypos;
-	block_unset_key(blk);
-	block_unset_occupied(blk);
-
-	do {
-		keypos = block_ptr_get(blk);
-		blk = &store->blocks[keypos];
-		block_unset_occupied(blk);
-	} while (!block_is_last(blk));
-}
-
-static void unlink_blocks(struct store *store, uint64_t hash,
-		int64_t keypos, int64_t lastpos)
-{
-	struct block *blk, *lastblk;
-	int64_t nextpos;
-
-	blk = &store->blocks[keypos];
-	nextpos = block_extra_ptr_get(blk);
-
-	if (lastpos >= 0) {
-		lastblk = &store->blocks[keypos];
-		if (block_is_last(blk))
-			block_set_last(lastblk);
-		else
-			block_extra_ptr_set(lastblk, nextpos);
-	} else {
-		if (block_is_last(blk))
-			store->entries[hash] = NO_ADDR;
-		else
-			store->entries[hash] = nextpos;
-	}
-
-	erase_blocks(store, blk);
-}
-
-static int64_t find_last_key(struct store *store, int64_t start)
+static void erase_blocks(struct store *store, uint64_t pos)
 {
 	struct block *blk;
-	int64_t keypos;
 
-	keypos = start;
-	blk = &store->blocks[keypos];
+	blk = &store->blocks[pos];
 
 	while (!block_is_last(blk)) {
-		if (!block_is_occupied(blk) || !block_is_key(blk))
-			return -1;
-		keypos = block_extra_ptr_get(blk);
-		blk = &store->blocks[keypos];
+		block_unset_occupied(blk);
+		pos = block_ptr_get(blk);
+		blk = &store->blocks[pos];
 	}
 
-	return keypos;
+	block_unset_occupied(blk);
+	block_unset_last(blk);
 }
 
 static void unlock_or_abort(pthread_rwlock_t *rwlock) {
@@ -398,16 +260,59 @@ static void unlock_or_abort(pthread_rwlock_t *rwlock) {
 	}
 }
 
+static inline int key_empty(struct store *store, int hash)
+{
+	return store->keys[hash].length == 0;
+}
+
+static int key_match(struct store *store,
+		uint8_t *key, size_t key_len, int hash)
+{
+	uint8_t *old_key, old_len;
+
+	old_len = store->keys[hash].length;
+	old_key = store->keys[hash].data;
+
+	return old_len == key_len && memcmp(old_key, key, key_len) == 0;
+}
+
+static int put_hash(struct store *store, uint8_t *key, size_t key_len)
+{
+	int hash;
+
+	hash = pearson_hash1(key, key_len) % NUM_ENTRIES;
+	if (key_empty(store, hash) || key_match(store, key, key_len, hash))
+		return hash;
+
+	hash = pearson_hash2(key, key_len) % NUM_ENTRIES;
+	if (key_empty(store, hash) || key_match(store, key, key_len, hash))
+		return hash;
+
+	return -1;
+}
+
+static int get_hash(struct store *store, uint8_t *key, size_t key_len)
+{
+	int hash;
+
+	hash = pearson_hash1(key, key_len) % NUM_ENTRIES;
+	if (key_match(store, key, key_len, hash))
+		return hash;
+
+	hash = pearson_hash2(key, key_len) % NUM_ENTRIES;
+	if (key_match(store, key, key_len, hash))
+		return hash;
+
+	return -1;
+}
+
 int store_put(struct store *store,
 		unsigned char *key, size_t key_len,
 		unsigned char *value, size_t value_len)
 {
 	size_t req_blocks = floor_div(value_len, BLOCK_DATA_SIZE);
-	uint64_t hash;
-	int64_t lastpos, keypos, datapos[req_blocks];
-	struct block *blk;
-	int retcode = -1;
-
+	uint64_t oldpos, datapos[req_blocks];
+	int retcode = -1, hash;
 
 	if (key_len > MAX_KEY_SIZE || value_len > MAX_VALUE_SIZE)
 		return -1;
@@ -418,32 +323,23 @@ int store_put(struct store *store,
 	if (pthread_rwlock_wrlock(&store->rwlock))
 		return -1;
 
-	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
-	keypos = store_get_index(store, key, key_len, hash, &lastpos);
-
-	/* if an entry with that key already exists, we have to unlink it */
-	if (keypos >= 0) {
-		unlink_blocks(store, hash, keypos, lastpos);
-		if (store->entries[hash] == NO_ADDR)
-			lastpos = -1;
-		else
-			lastpos = find_last_key(store, store->entries[hash]);
-	}
-
-	if (allocate_blocks(store, &keypos, datapos, req_blocks) < 0)
+	hash = put_hash(store, key, key_len);
+	if (hash < 0)
 		goto exit_unlock;
 
-	/* if this is going to be the only block, make sure to set the entry */
-	if (lastpos == -1)
-		store->entries[hash] = keypos;
-	else {
-		blk = &store->blocks[lastpos];
-		block_unset_last(blk);
-		block_extra_ptr_set(blk, keypos);
+	// if a value already exists, we have to erase it
+	if (store->keys[hash].length != 0) {
+		oldpos = store->addresses[hash];
+		erase_blocks(store, oldpos);
 	}
 
-	fill_blocks(store, key, key_len, value, value_len,
-			keypos, datapos, req_blocks);
+	store->keys[hash].length = key_len;
+	memcpy(store->keys[hash].data, key, key_len);
+
+	if (allocate_blocks(store, datapos, req_blocks) < 0)
+		goto exit_unlock;
+
+	fill_blocks(store, value, value_len, datapos, req_blocks);
 	retcode = 0;
 exit_unlock:
 	unlock_or_abort(&store->rwlock);
@@ -453,26 +349,24 @@ exit_unlock:
 int store_get(struct store *store, unsigned char *key, size_t key_len,
 		unsigned char* dest, size_t dest_len)
 {
-	int64_t keypos, valpos;
-	uint64_t hash;
+	uint64_t valpos;
 	struct block *blk;
 	unsigned int blk_len;
 	unsigned int actual_len = 0;
-	int retcode = -1;
+	int hash, retcode = -1;
 
 	if (pthread_rwlock_rdlock(&store->rwlock))
 		return -1;
 
-	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
-	keypos = store_get_index(store, key, key_len, hash, NULL);
-	if (keypos < 0)
+	hash = get_hash(store, key, key_len);
+	if (hash < 0)
 		goto unlock_exit;
-	blk = &store->blocks[keypos];
-	valpos = block_ptr_get(blk);
+
+	valpos = store->addresses[hash];
 
 	do {
 		blk = &store->blocks[valpos];
-		if (block_is_key(blk) || !block_is_occupied(blk))
+		if (!block_is_occupied(blk))
 			goto unlock_exit;
 		blk_len = block_length_get(blk);
 		if (blk_len > dest_len)
@@ -492,20 +386,20 @@ unlock_exit:
 
 int store_del(struct store *store, unsigned char *key, size_t key_len)
 {
-	int64_t keypos, lastpos;
-	uint64_t hash;
+	uint64_t oldpos;
+	int hash;
 	int retcode = -1;
 
 	if (pthread_rwlock_wrlock(&store->rwlock))
 		return -1;
 
-	hash = HASH_FUNC(key, key_len) % NUM_ENTRIES;
-	keypos = store_get_index(store, key, key_len, hash, &lastpos);
-
-	if (keypos < 0)
+	hash = get_hash(store, key, key_len);
+	if (hash < 0)
 		goto unlock_exit;
 
-	unlink_blocks(store, hash, keypos, lastpos);
+	store->keys[hash].length = 0;
+	oldpos = store->addresses[hash];
+	erase_blocks(store, oldpos);
 	retcode = 0;
 
 unlock_exit:
