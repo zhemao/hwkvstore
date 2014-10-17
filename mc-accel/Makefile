@@ -1,5 +1,7 @@
-emulator-vcd:
-	sbt "run-main McAccel.PearsonHasherMain --compile --genHarness --test --vcd --debug --targetDir build/emulator/generated-src"
+TEST_FLAGS = --compile --genHarness --test --vcd --debug --targetDir build/emulator/generated-src
 
-emulator:
-	sbt "run-main McAccel.PearsonHasherMain --compile --genHarness --targetDir build/emulator/generated-src"
+pearson-test:
+	sbt "run-main McAccel.PearsonHasherMain $(TEST_FLAGS)"
+
+keycompare-test:
+	sbt "run-main McAccel.KeyCompareMain $(TEST_FLAGS)"
