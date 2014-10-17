@@ -1,12 +1,18 @@
 package McAccel
 
 import Chisel._
+import McAccel.TestUtils._
 
-class PearsonHasher(HashBytes: Int, MessAddrSize: Int) extends Module {
+class PearsonHasher(HashBytes: Int, MessAddrSize: Int, MessWordSize: Int)
+    extends Module {
+  val MessWordBytes = MessWordSize / 8
+  val MessAddrShift = log2Up(MessWordBytes)
+  val MessByteAddrSize = MessAddrSize + MessAddrShift
+
   val io = new Bundle {
     val messAddr = UInt(OUTPUT, MessAddrSize)
-    val messData = UInt(INPUT, 8)
-    val messLen = UInt(INPUT, MessAddrSize)
+    val messData = UInt(INPUT, MessWordSize)
+    val messLen = UInt(INPUT, MessByteAddrSize)
     val romAddr = Vec.fill(HashBytes) { UInt(OUTPUT, 8) }
     val romData = Vec.fill(HashBytes) { UInt(INPUT, 8) }
     val result = UInt(OUTPUT, 8 * HashBytes)
@@ -16,16 +22,20 @@ class PearsonHasher(HashBytes: Int, MessAddrSize: Int) extends Module {
 
   val h = Vec.fill(HashBytes) { Reg(UInt(width = 8)) }
 
-  val index = Reg(init = UInt(0, MessAddrSize))
-  io.messAddr := index
+  val index = Reg(init = UInt(0, MessByteAddrSize))
+  io.messAddr := index(MessByteAddrSize - 1, MessAddrShift)
+  val messDataBytes = Vec((0 until MessWordBytes).map {
+    i => io.messData((i + 1) * 8 - 1, i * 8)
+  })
+  val messByte = messDataBytes(index(MessAddrShift - 1, 0))
 
   val s_wait :: s_hash :: Nil = Enum(UInt(), 2)
   val state = Reg(init = s_wait)
 
   for (j <- 0 until HashBytes) {
     io.romAddr(j) := Mux(index === UInt(0),
-      io.messData + UInt(j),
-      h(j) ^ io.messData)
+      messByte + UInt(j),
+      h(j) ^ messByte)
   }
 
   switch (state) {
@@ -51,13 +61,16 @@ class PearsonHasher(HashBytes: Int, MessAddrSize: Int) extends Module {
   io.finished := (state === s_wait)
 }
 
-class PearsonHasherSetup(val HashBytes: Int, MemSize: Int) extends Module {
+class PearsonHasherSetup(val HashBytes: Int, WordSize: Int, MemSize: Int)
+    extends Module {
   val MessAddrSize = log2Up(MemSize)
+  val WordBytes = WordSize / 8
+  val MessByteAddrSize = log2Up(WordBytes) + MessAddrSize
   val io = new Bundle {
     val messAddr = UInt(INPUT, MessAddrSize)
-    val messData = UInt(INPUT, 8)
+    val messData = UInt(INPUT, WordSize)
     val messWrite = Bool(INPUT)
-    val messLen = UInt(INPUT, MessAddrSize)
+    val messLen = UInt(INPUT, MessByteAddrSize)
     val result = UInt(OUTPUT, 8 * HashBytes)
     val start = Bool(INPUT)
     val finished = Bool(OUTPUT)
@@ -83,13 +96,13 @@ class PearsonHasherSetup(val HashBytes: Int, MemSize: Int) extends Module {
   )
   val rom = Vec(romValues.map { x => UInt(x, 8) })
 
-  val messMem = Mem(UInt(width = 8), MemSize, true)
+  val messMem = Mem(UInt(width = WordSize), MemSize, true)
 
   when (io.messWrite) {
     messMem(io.messAddr) := io.messData
   }
 
-  val hasher = Module(new PearsonHasher(HashBytes, MessAddrSize))
+  val hasher = Module(new PearsonHasher(HashBytes, MessAddrSize, WordSize))
   hasher.io.messLen  <> io.messLen
   hasher.io.result   <> io.result
   hasher.io.start    <> io.start
@@ -101,9 +114,6 @@ class PearsonHasherSetup(val HashBytes: Int, MemSize: Int) extends Module {
 }
 
 class PearsonHasherTest(c: PearsonHasherSetup) extends Tester(c) {
-  var hexpand = BigInt(0)
-  val mess = "asdfklj;kadgjaskn23kgnas"
-
   def computeHash(table: Array[Int], mess: String): BigInt = {
     var result = BigInt(0)
     for (j <- 0 until c.HashBytes) {
@@ -115,13 +125,16 @@ class PearsonHasherTest(c: PearsonHasherSetup) extends Tester(c) {
     result
   }
 
+  val mess = "asdfklj;kadgjaskn23kgnas"
+  val messWords = messToWords(mess, c.WordBytes)
+
   val hash = computeHash(c.romValues, mess)
   printf("Expect %s -> %x\n", mess, hash)
 
   poke(c.io.messWrite, 1)
-  for (i <- 0 until mess.length) {
+  for (i <- 0 until messWords.length) {
     poke(c.io.messAddr, i)
-    poke(c.io.messData, mess(i))
+    poke(c.io.messData, messWords(i))
     step(1)
   }
   poke(c.io.messWrite, 0)
@@ -137,7 +150,7 @@ class PearsonHasherTest(c: PearsonHasherSetup) extends Tester(c) {
 
 object PearsonHasherMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new PearsonHasherSetup(2, 256))) {
+    chiselMainTest(args, () => Module(new PearsonHasherSetup(2, 64, 256))) {
       c => new PearsonHasherTest(c)
     }
   }
