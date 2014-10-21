@@ -27,9 +27,13 @@ class KeyCompare(KeyAddrSize: Int, HashSize: Int, WordSize: Int) extends Module 
   io.allKeyAddr := Cat(curHash, index)
 
   val wordLen = curInfo.len(KeyLenSize - 1, WordShift)
-  val byteOff = curInfo.len(WordShift - 1, 0)
-  val reachedEnd = Mux(byteOff === UInt(0),
-    index === wordLen + UInt(1), index === wordLen + UInt(2))
+  val reachedEnd = if (WordShift == 0) {
+    index === wordLen + UInt(1)
+  } else {
+    val byteOff = curInfo.len(WordShift - 1, 0)
+    Mux(byteOff === UInt(0),
+      index === wordLen + UInt(1), index === wordLen + UInt(2))
+  }
 
   val (s_wait :: s_delay_len :: s_check_len ::
     s_delay_data :: s_check_data :: s_handoff :: Nil) = Enum(UInt(), 6)
@@ -232,7 +236,7 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
 
 object KeyCompareMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new KeyCompareSetup(32, 4, 64))) {
+    chiselMainTest(args, () => Module(new KeyCompareSetup(32, 4, 8))) {
       c => new KeyCompareTest(c)
     }
   }
