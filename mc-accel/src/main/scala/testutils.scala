@@ -29,4 +29,14 @@ object TestUtils {
 
     messWords
   }
+  def computeHash(table: Array[Int], key: String, bytes: Int): BigInt = {
+    var result = BigInt(0)
+    for (j <- 0 until bytes) {
+      var h = table((key(0) + j) % 256)
+      for (i <- 1 until key.length)
+        h = table(h ^ key(i))
+      result |= (h << (8 * j))
+    }
+    result
+  }
 }
