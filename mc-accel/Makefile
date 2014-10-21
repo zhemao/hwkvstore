@@ -5,3 +5,6 @@ pearson-test:
 
 keycompare-test:
 	sbt "run-main McAccel.KeyCompareMain $(TEST_FLAGS)"
+
+hasherwriter-test:
+	sbt "run-main McAccel.HasherWriterMain $(TEST_FLAGS)"
