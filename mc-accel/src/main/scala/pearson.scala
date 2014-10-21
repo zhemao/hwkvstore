@@ -6,7 +6,7 @@ import McAccel.TestUtils._
 class PearsonHasher(HashBytes: Int, MessAddrSize: Int, MessWordSize: Int)
     extends Module {
   val MessWordBytes = MessWordSize / 8
-  val MessAddrShift = log2Up(MessWordBytes)
+  val MessAddrShift = log2Up(MessWordSize) - 3
   val MessByteAddrSize = MessAddrSize + MessAddrShift
 
   val io = new Bundle {
@@ -27,7 +27,11 @@ class PearsonHasher(HashBytes: Int, MessAddrSize: Int, MessWordSize: Int)
   val messDataBytes = Vec((0 until MessWordBytes).map {
     i => io.messData((i + 1) * 8 - 1, i * 8)
   })
-  val messByte = messDataBytes(index(MessAddrShift - 1, 0))
+  val messByte = if (MessAddrShift > 0) {
+    messDataBytes(index(MessAddrShift - 1, 0))
+  } else {
+    io.messData
+  }
 
   val s_wait :: s_hash :: Nil = Enum(UInt(), 2)
   val state = Reg(init = s_wait)
@@ -150,7 +154,7 @@ class PearsonHasherTest(c: PearsonHasherSetup) extends Tester(c) {
 
 object PearsonHasherMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new PearsonHasherSetup(2, 64, 256))) {
+    chiselMainTest(args, () => Module(new PearsonHasherSetup(2, 8, 256))) {
       c => new PearsonHasherTest(c)
     }
   }
