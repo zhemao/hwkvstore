@@ -18,7 +18,7 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     val keyWrite = Bool(OUTPUT)
 
     val keyIncoming = new DecoupledIO(UInt(width = 8)).flip
-    val hashinfo = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
+    val hashOut = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
   }
 
   val keyLen = Reg(UInt(width = KeyAddrSize))
@@ -73,7 +73,7 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     }
     is (s_finish) {
       keyWrite := Bool(false)
-      when (io.hashinfo.ready) {
+      when (io.hashOut.ready) {
         restart := Bool(true)
         state := s_wait
       }
@@ -83,7 +83,7 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
   val rom1 = Vec(pearsonRomValues1.map { x => UInt(x, 8) })
   val rom2 = Vec(pearsonRomValues2.map { x => UInt(x, 8) })
   val roms = Array(rom1, rom2)
-  val results = Array(io.hashinfo.bits.hash1, io.hashinfo.bits.hash2)
+  val results = Array(io.hashOut.bits.hash1, io.hashOut.bits.hash2)
 
   for (hashind <- 0 until 2) {
     val rom = roms(hashind)
@@ -97,8 +97,8 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     hasher.io.restart := restart
   }
 
-  io.hashinfo.valid := (state === s_finish)
-  io.hashinfo.bits.len := keyLen
+  io.hashOut.valid := (state === s_finish)
+  io.hashOut.bits.len := keyLen
   io.keyIncoming.ready := (state != s_finish)
 }
 
@@ -111,7 +111,7 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int, val KeySize: Int)
 
   val io = new Bundle {
     val keyIncoming = new DecoupledIO(UInt(width = 8)).flip
-    val hashinfo = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
+    val hashOut = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
 
     val keyReadAddr = UInt(INPUT, KeyAddrSize)
     val keyReadData = UInt(OUTPUT, WordSize)
@@ -121,7 +121,7 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int, val KeySize: Int)
 
   val hw = Module(new HasherWriter(HashSize, WordSize, KeySize))
   hw.io.keyIncoming <> io.keyIncoming
-  hw.io.hashinfo    <> io.hashinfo
+  hw.io.hashOut     <> io.hashOut
 
   when (hw.io.keyWrite) {
     mem(hw.io.keyWriteAddr) := hw.io.keyWriteData
@@ -150,15 +150,15 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
   val hash1 = computeHash(pearsonRomValues1, key, HashBytes) % (1 << c.HashSize)
   val hash2 = computeHash(pearsonRomValues2, key, HashBytes) % (1 << c.HashSize)
 
-  poke(c.io.hashinfo.ready, 1)
+  poke(c.io.hashOut.ready, 1)
   step(1)
-  expect(c.io.hashinfo.valid, 1)
-  expect(c.io.hashinfo.bits.hash1, hash1)
-  expect(c.io.hashinfo.bits.hash2, hash2)
-  expect(c.io.hashinfo.bits.len, key.length)
+  expect(c.io.hashOut.valid, 1)
+  expect(c.io.hashOut.bits.hash1, hash1)
+  expect(c.io.hashOut.bits.hash2, hash2)
+  expect(c.io.hashOut.bits.len, key.length)
   expect(c.io.keyIncoming.ready, 0)
 
-  poke(c.io.hashinfo.ready, 0)
+  poke(c.io.hashOut.ready, 0)
   poke(c.io.keyIncoming.valid, 0)
 
   for (i <- 0 until keyWords.length) {
