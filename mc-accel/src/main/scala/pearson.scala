@@ -3,78 +3,48 @@ package McAccel
 import Chisel._
 import McAccel.TestUtils._
 
-class PearsonHasher(HashBytes: Int, MessAddrSize: Int, MessWordSize: Int)
-    extends Module {
-  val MessWordBytes = MessWordSize / 8
-  val MessAddrShift = log2Up(MessWordSize) - 3
-  val MessByteAddrSize = MessAddrSize + MessAddrShift
-
+class PearsonHasher(HashBytes: Int, KeyLenSize: Int) extends Module {
   val io = new Bundle {
-    val messAddr = UInt(OUTPUT, MessAddrSize)
-    val messData = UInt(INPUT, MessWordSize)
-    val messLen = UInt(INPUT, MessByteAddrSize)
+    val keyData = new ValidIO(UInt(width = 8)).flip
+    val keyLen = UInt(INPUT, KeyLenSize)
     val romAddr = Vec.fill(HashBytes) { UInt(OUTPUT, 8) }
     val romData = Vec.fill(HashBytes) { UInt(INPUT, 8) }
-    val result = UInt(OUTPUT, 8 * HashBytes)
-    val start = Bool(INPUT)
-    val finished = Bool(OUTPUT)
+    val result = new ValidIO(UInt(width = 8 * HashBytes))
+    val restart = Bool(INPUT)
   }
 
   val h = Vec.fill(HashBytes) { Reg(UInt(width = 8)) }
+  val index = Reg(init = UInt(0, KeyLenSize))
 
-  val index = Reg(init = UInt(0, MessByteAddrSize))
-  io.messAddr := index(MessByteAddrSize - 1, MessAddrShift)
-  val messDataBytes = Vec((0 until MessWordBytes).map {
-    i => io.messData((i + 1) * 8 - 1, i * 8)
-  })
-  val messByte = if (MessAddrShift > 0) {
-    messDataBytes(index(MessAddrShift - 1, 0))
-  } else {
-    io.messData
-  }
-
-  val s_wait :: s_hash :: Nil = Enum(UInt(), 2)
-  val state = Reg(init = s_wait)
-
+  val keyByte = io.keyData.bits
   for (j <- 0 until HashBytes) {
     io.romAddr(j) := Mux(index === UInt(0),
-      messByte + UInt(j),
-      h(j) ^ messByte)
+      keyByte + UInt(j), h(j) ^ keyByte)
   }
 
-  switch (state) {
-    is (s_wait) {
-      when (io.start) {
-        for (i <- 0 until HashBytes) {
-          h(i) := UInt(0)
-        }
-        state := s_hash
-      }
-    }
-    is (s_hash) {
-      when (index === io.messLen) {
-        state := s_wait
-      } .otherwise {
-        h := io.romData
-        index := index + UInt(1)
-      }
-    }
+  when (io.restart) {
+    for (i <- 0 until HashBytes)
+      h(i) := UInt(0)
+    index := UInt(0)
+  } .elsewhen (index != io.keyLen && io.keyData.valid) {
+    h := io.romData
+    index := index + UInt(1)
   }
 
-  io.result := Cat(h.toSeq.reverse)
-  io.finished := (state === s_wait)
+  io.result.bits := Cat(h.toSeq.reverse)
+  io.result.valid := index === io.keyLen
 }
 
 class PearsonHasherSetup(val HashBytes: Int, WordSize: Int, MemSize: Int)
     extends Module {
-  val MessAddrSize = log2Up(MemSize)
+  val KeyAddrSize = log2Up(MemSize)
   val WordBytes = WordSize / 8
-  val MessByteAddrSize = log2Up(WordBytes) + MessAddrSize
+  val KeyByteAddrSize = log2Up(WordBytes) + KeyAddrSize
   val io = new Bundle {
-    val messAddr = UInt(INPUT, MessAddrSize)
-    val messData = UInt(INPUT, WordSize)
-    val messWrite = Bool(INPUT)
-    val messLen = UInt(INPUT, MessByteAddrSize)
+    val keyAddr = UInt(INPUT, KeyAddrSize)
+    val keyData = UInt(INPUT, WordSize)
+    val keyWrite = Bool(INPUT)
+    val keyLen = UInt(INPUT, KeyByteAddrSize)
     val result = UInt(OUTPUT, 8 * HashBytes)
     val start = Bool(INPUT)
     val finished = Bool(OUTPUT)
@@ -98,56 +68,79 @@ class PearsonHasherSetup(val HashBytes: Int, WordSize: Int, MemSize: Int)
     238, 87,240,155,180,170,242,212,191,163, 78,218,137,194,175,110,
     43,119,224, 71,122,142, 42,160,104, 48,247,103, 15, 11,138,239
   )
+
   val rom = Vec(romValues.map { x => UInt(x, 8) })
+  val keyMem = Mem(UInt(width = WordSize), MemSize, true)
+  val index = Reg(init = UInt(0, KeyAddrSize))
 
-  val messMem = Mem(UInt(width = WordSize), MemSize, true)
-
-  when (io.messWrite) {
-    messMem(io.messAddr) := io.messData
+  when (io.keyWrite) {
+    keyMem(io.keyAddr) := io.keyData
   }
 
-  val hasher = Module(new PearsonHasher(HashBytes, MessAddrSize, WordSize))
-  hasher.io.messLen  <> io.messLen
-  hasher.io.result   <> io.result
-  hasher.io.start    <> io.start
-  hasher.io.finished <> io.finished
+  val s_wait :: s_start :: s_hash :: Nil = Enum(UInt(), 3)
+  val state = Reg(init = s_wait)
 
-  hasher.io.messData := messMem(hasher.io.messAddr)
+  val hasher = Module(new PearsonHasher(HashBytes, KeyAddrSize))
+  hasher.io.keyLen := io.keyLen
+  io.result := hasher.io.result.bits
+  io.finished := hasher.io.result.valid
+  hasher.io.restart := (state === s_start)
+  hasher.io.keyData.bits := keyMem(index)
+  hasher.io.keyData.valid := (state === s_hash)
   for (i <- 0 until HashBytes)
     hasher.io.romData(i) := rom(hasher.io.romAddr(i))
+
+  switch (state) {
+    is (s_wait) {
+      when (io.start) {
+        index := UInt(0)
+        state := s_start
+      }
+    }
+    is (s_start) {
+      state := s_hash
+    }
+    is (s_hash) {
+      when (index === io.keyLen) {
+        state := s_wait
+      } .otherwise {
+        index := index + UInt(1)
+      }
+    }
+  }
 }
 
 class PearsonHasherTest(c: PearsonHasherSetup) extends Tester(c) {
-  def computeHash(table: Array[Int], mess: String): BigInt = {
+  def computeHash(table: Array[Int], key: String): BigInt = {
     var result = BigInt(0)
     for (j <- 0 until c.HashBytes) {
-      var h = table((mess(0) + j) % 256)
-      for (i <- 1 until mess.length)
-        h = table(h ^ mess(i))
+      var h = table((key(0) + j) % 256)
+      for (i <- 1 until key.length)
+        h = table(h ^ key(i))
       result |= (h << (8 * j))
     }
     result
   }
 
-  val mess = "asdfklj;kadgjaskn23kgnas"
-  val messWords = messToWords(mess, c.WordBytes)
+  val key = "asdfklj;kadgjaskn23kgnas"
+  val keyWords = messToWords(key, c.WordBytes)
 
-  val hash = computeHash(c.romValues, mess)
-  printf("Expect %s -> %x\n", mess, hash)
+  val hash = computeHash(c.romValues, key)
+  printf("Expect %s -> %x\n", key, hash)
 
-  poke(c.io.messWrite, 1)
-  for (i <- 0 until messWords.length) {
-    poke(c.io.messAddr, i)
-    poke(c.io.messData, messWords(i))
+  poke(c.io.keyWrite, 1)
+  for (i <- 0 until keyWords.length) {
+    poke(c.io.keyAddr, i)
+    poke(c.io.keyData, keyWords(i))
     step(1)
   }
-  poke(c.io.messWrite, 0)
-  poke(c.io.messLen, mess.length)
+  poke(c.io.keyWrite, 0)
+  poke(c.io.keyLen, key.length)
 
   poke(c.io.start, 1)
   step(1)
   poke(c.io.start, 0)
-  step(mess.length + 2)
+  step(key.length + 2)
   expect(c.io.finished, 1)
   expect(c.io.result, hash)
 }
