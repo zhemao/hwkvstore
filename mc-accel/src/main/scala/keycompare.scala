@@ -13,8 +13,8 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
     val curKeyData = UInt(INPUT, WordSize)
     val allKeyAddr = UInt(OUTPUT, HashSize + KeyAddrSize)
     val allKeyData = UInt(INPUT, WordSize)
-    val hashIn = new DecoupledIO(new HashInfo(HashSize, KeyLenSize)).flip
-    val hashOut = new DecoupledIO(new HashSelection(HashSize))
+    val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize)).flip
+    val hashOut = Decoupled(new HashSelection(HashSize))
   }
 
   val index = Reg(UInt(width = KeyAddrSize))

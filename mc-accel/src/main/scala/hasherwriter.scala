@@ -17,8 +17,8 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     val keyWriteData = UInt(OUTPUT, WordSize)
     val keyWrite = Bool(OUTPUT)
 
-    val keyIncoming = new DecoupledIO(UInt(width = 8)).flip
-    val hashOut = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
+    val keyIncoming = Decoupled(UInt(width = 8)).flip
+    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize))
   }
 
   val keyLen = Reg(UInt(width = KeyAddrSize))
@@ -110,8 +110,8 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int, val KeySize: Int)
   val KeyAddrSize = KeyLenSize - ByteShift
 
   val io = new Bundle {
-    val keyIncoming = new DecoupledIO(UInt(width = 8)).flip
-    val hashOut = new DecoupledIO(new HashInfo(HashSize, KeyLenSize))
+    val keyIncoming = Decoupled(UInt(width = 8)).flip
+    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize))
 
     val keyReadAddr = UInt(INPUT, KeyAddrSize)
     val keyReadData = UInt(OUTPUT, WordSize)
