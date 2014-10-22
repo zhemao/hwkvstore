@@ -1,5 +1,8 @@
 TEST_FLAGS = --compile --genHarness --test --vcd --debug --targetDir build/emulator/generated-src
 
+lookup-test:
+	sbt "run-main McAccel.LookupPipelineMain $(TEST_FLAGS)"
+
 pearson-test:
 	sbt "run-main McAccel.PearsonHasherMain $(TEST_FLAGS)"
 
