@@ -2,12 +2,12 @@ package McAccel
 
 import Chisel._
 
-class KeyInfo(val KeyLenSize: Int, val TagSize: Int) extends Bundle {
-  val len = UInt(width = KeyLenSize)
+class MessageInfo(val LenSize: Int, val TagSize: Int) extends Bundle {
+  val len = UInt(width = LenSize)
   val tag = UInt(width = TagSize)
 
   override def clone =
-    (new KeyInfo(KeyLenSize, TagSize)).asInstanceOf[this.type]
+    (new MessageInfo(LenSize, TagSize)).asInstanceOf[this.type]
 }
 
 class HashInfo(val HashSize: Int, val KeyLenSize: Int, val TagSize: Int)

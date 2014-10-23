@@ -14,7 +14,7 @@ class LookupPipeline(
   val KeyLenSize = log2Up(KeySize)
 
   val io = new Bundle {
-    val keyInfo = Decoupled(new KeyInfo(KeyLenSize, TagSize)).flip
+    val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
     val keyData = Decoupled(UInt(width = 8)).flip
     val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
     val allKeyAddr = UInt(INPUT, log2Up(AllKeyWords))
