@@ -3,7 +3,8 @@ package McAccel
 import Chisel._
 import McAccel.TestUtils._
 
-class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
+class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
+    extends Module {
   val KeyLenSize = log2Up(KeySize)
   val WordShift = log2Up(WordSize) - 3
   val KeyAddrSize = KeyLenSize - WordShift
@@ -13,12 +14,12 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
     val curKeyData = UInt(INPUT, WordSize)
     val allKeyAddr = UInt(OUTPUT, HashSize + KeyAddrSize)
     val allKeyData = UInt(INPUT, WordSize)
-    val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize)).flip
-    val hashOut = Decoupled(new HashSelection(HashSize))
+    val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize)).flip
+    val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
   }
 
   val index = Reg(UInt(width = KeyAddrSize))
-  val curInfo = Reg(new HashInfo(HashSize, KeyLenSize))
+  val curInfo = Reg(new HashInfo(HashSize, KeyLenSize, TagSize))
   val checkFirst = Reg(Bool())
   val curHash = Mux(checkFirst, curInfo.hash1, curInfo.hash2)
 
@@ -44,6 +45,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
 
   io.hashOut.bits.hash := curHash
   io.hashOut.bits.found := hashFound
+  io.hashOut.bits.tag := curInfo.tag
   io.hashOut.valid := (state === s_handoff)
   io.hashIn.ready := (state === s_wait)
 
@@ -98,8 +100,9 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   }
 }
 
-class KeyCompareSetup(val WordSize: Int, val MaxKeySize: Int, val NumKeys: Int)
-    extends Module {
+class KeyCompareSetup(
+    val WordSize: Int, val MaxKeySize: Int, val NumKeys: Int, TagSize: Int)
+      extends Module {
   val KeyLenSize = log2Up(MaxKeySize)
   val WordShift = log2Up(WordSize) - 3
   val KeyAddrSize = KeyLenSize - WordShift
@@ -118,27 +121,31 @@ class KeyCompareSetup(val WordSize: Int, val MaxKeySize: Int, val NumKeys: Int)
     val hash1 = UInt(INPUT, HashSize)
     val hash2 = UInt(INPUT, HashSize)
     val len = UInt(INPUT, KeyLenSize)
+    val intag = UInt(INPUT, TagSize)
     val hashsel = UInt(OUTPUT, HashSize)
     val start = Bool(INPUT)
     val finish = Bool(INPUT)
     val ready = Bool(OUTPUT)
     val done = Bool(OUTPUT)
     val found = Bool(OUTPUT)
+    val outtag = UInt(OUTPUT, TagSize)
   }
 
   val curKeyMem = Mem(UInt(width = WordSize), CurKeyWords)
   val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
 
-  val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize))
+  val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize, TagSize))
   keycomp.io.hashIn.bits.hash1 := io.hash1
   keycomp.io.hashIn.bits.hash2 := io.hash2
   keycomp.io.hashIn.bits.len := io.len
+  keycomp.io.hashIn.bits.tag := io.intag
   keycomp.io.hashIn.valid := io.start
   keycomp.io.hashOut.ready := io.finish
   io.ready := keycomp.io.hashIn.ready
   io.done := keycomp.io.hashOut.valid
   io.hashsel := keycomp.io.hashOut.bits.hash
   io.found := keycomp.io.hashOut.bits.found
+  io.outtag := keycomp.io.hashOut.bits.tag
 
   val curKeyAddr = Reg(next = keycomp.io.curKeyAddr)
   keycomp.io.curKeyData := curKeyMem(curKeyAddr)
@@ -243,7 +250,7 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
 
 object KeyCompareMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new KeyCompareSetup(32, 256, 8))) {
+    chiselMainTest(args, () => Module(new KeyCompareSetup(32, 256, 8, 4))) {
       c => new KeyCompareTest(c)
     }
   }

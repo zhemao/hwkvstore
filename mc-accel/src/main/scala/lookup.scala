@@ -4,25 +4,31 @@ import Chisel._
 import McAccel.TestUtils._
 import McAccel.Constants._
 
-class LookupPipeline(val WordSize: Int, val KeySize: Int, val NumKeys: Int)
-    extends Module {
+class LookupPipeline(
+    val WordSize: Int, val KeySize: Int, val NumKeys: Int, TagSize: Int)
+      extends Module {
   val WordBytes = WordSize / 8
   val CurKeyWords = KeySize / WordBytes
   val AllKeyWords = CurKeyWords * NumKeys
   val HashSize = log2Up(NumKeys)
+  val KeyLenSize = log2Up(KeySize)
 
   val io = new Bundle {
-    val keyIncoming = new DecoupledIO(UInt(width = 8)).flip
-    val hashOut = new DecoupledIO(new HashSelection(HashSize))
+    val keyInfo = Decoupled(new KeyInfo(KeyLenSize, TagSize)).flip
+    val keyData = Decoupled(UInt(width = 8)).flip
+    val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
     val allKeyAddr = UInt(INPUT, log2Up(AllKeyWords))
     val allKeyData = UInt(INPUT, WordSize)
     val allKeyWrite = Bool(INPUT)
   }
 
-  val hasherwriter = Module(new HasherWriter(HashSize, WordSize, KeySize))
-  hasherwriter.io.keyIncoming <> io.keyIncoming
+  val hasherwriter = Module(
+    new HasherWriter(HashSize, WordSize, KeySize, TagSize))
+  hasherwriter.io.keyData <> io.keyData
+  hasherwriter.io.keyInfo <> io.keyInfo
 
-  val keycompare = Module(new KeyCompare(HashSize, WordSize, KeySize))
+  val keycompare = Module(
+    new KeyCompare(HashSize, WordSize, KeySize, TagSize))
   keycompare.io.hashIn <> hasherwriter.io.hashOut
   keycompare.io.hashOut <> io.hashOut
 
@@ -75,19 +81,28 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     step(1)
   }
 
-  def streamCurKey(key: String) {
-    while (peek(c.io.keyIncoming.ready) == 0) {
+  def streamCurKey(key: String, tag: Int) {
+    isTrace = false
+    println(s"Waiting for keyInfo ready on ${tag}")
+    while (peek(c.io.keyInfo.ready) == 0)
       step(1)
-    }
-    poke(c.io.keyIncoming.valid, 1)
-    poke(c.io.keyIncoming.bits, key.length)
+    poke(c.io.keyInfo.valid, 1)
+    poke(c.io.keyInfo.bits.len, key.length)
+    poke(c.io.keyInfo.bits.tag, tag)
     step(1)
+    poke(c.io.keyInfo.valid, 0)
+    step(1)
+    println(s"Waiting for keyData ready on ${tag}")
+    while (peek(c.io.keyData.ready) == 0)
+      step(1)
+    poke(c.io.keyData.valid, 1)
     for (ch <- key) {
-      poke(c.io.keyIncoming.bits, ch)
+      poke(c.io.keyData.bits, ch)
       step(1)
     }
-    poke(c.io.keyIncoming.valid, 0)
+    poke(c.io.keyData.valid, 0)
     step(1)
+    isTrace = true
   }
 
   val key1 = "abcdefghijklmnopqrstuvwxyz"
@@ -105,10 +120,10 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   writeKeyData(hash3 * KeyWords, key3)
 
   // stream in key1
-  streamCurKey(key1)
+  streamCurKey(key1, 1)
   expect(c.io.hashOut.valid, 0)
   // stream in key 2 and check result of key 1 lookup
-  streamCurKey(key2)
+  streamCurKey(key2, 2)
   expect(c.io.hashOut.valid, 1)
   expect(c.io.hashOut.bits.found, 1)
   expect(c.io.hashOut.bits.hash, hash1)
@@ -116,7 +131,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   step(1)
   poke(c.io.hashOut.ready, 0)
   // stream in key 3 and check result of key 2 lookup
-  streamCurKey(key3)
+  streamCurKey(key3, 3)
   expect(c.io.hashOut.valid, 1)
   expect(c.io.hashOut.bits.found, 1)
   expect(c.io.hashOut.bits.hash, hash2)
@@ -135,7 +150,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
 object LookupPipelineMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new LookupPipeline(32, 256, 16))) {
+    chiselMainTest(args, () => Module(new LookupPipeline(32, 256, 16, 4))) {
       c => new LookupPipelineTest(c)
     }
   }

@@ -4,7 +4,7 @@ import Chisel._
 import McAccel.TestUtils._
 import McAccel.Constants._
 
-class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
+class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {
   val WordBytes = WordSize / 8
   val ByteShift = log2Up(WordSize) - 3
@@ -17,17 +17,19 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     val keyWriteData = UInt(OUTPUT, WordSize)
     val keyWrite = Bool(OUTPUT)
 
-    val keyIncoming = Decoupled(UInt(width = 8)).flip
-    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize))
+    val keyData = Decoupled(UInt(width = 8)).flip
+    val keyInfo = Decoupled(new KeyInfo(KeyLenSize, TagSize)).flip
+    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize))
   }
 
-  val keyLen = Reg(UInt(width = KeyAddrSize))
+  val keyLen = Reg(UInt(width = KeyLenSize))
+  val keyTag = Reg(UInt(width = TagSize))
 
-  val s_wait :: s_read_values :: s_finish :: Nil = Enum(UInt(), 3)
+  val s_wait :: s_read :: s_finish :: Nil = Enum(UInt(), 3)
   val state = Reg(init = s_wait)
   val index = Reg(init = UInt(0, KeyLenSize))
   val restart = Reg(init = Bool(false))
-  val hashInputValid = io.keyIncoming.valid && state === s_read_values
+  val hashInputValid = io.keyData.valid && state === s_read
   val byteOff = if (ByteShift == 0) {
     UInt(0, 1)
   } else {
@@ -44,13 +46,14 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
   switch (state) {
     is (s_wait) {
       restart := Bool(false)
-      when (io.keyIncoming.valid) {
-        keyLen := io.keyIncoming.bits
+      when (io.keyInfo.valid) {
+        keyLen := io.keyInfo.bits.len
+        keyTag := io.keyInfo.bits.tag
         index := UInt(0)
-        state := s_read_values
+        state := s_read
       }
     }
-    is (s_read_values) {
+    is (s_read) {
       keyWrite := Bool(false)
       when (index === keyLen) {
         when (byteOff != UInt(0)) {
@@ -58,11 +61,11 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
           keyWriteAddr := index(KeyLenSize - 1, ByteShift)
         }
         state := s_finish
-      } .elsewhen (io.keyIncoming.valid) {
+      } .elsewhen (io.keyData.valid) {
         when (byteOff === UInt(0)) {
-          keyWriteData := io.keyIncoming.bits
+          keyWriteData := io.keyData.bits
         } .otherwise {
-          keyWriteData := keyWriteData | io.keyIncoming.bits << inputShift
+          keyWriteData := keyWriteData | io.keyData.bits << inputShift
         }
         when (byteOff === UInt(WordBytes - 1)) {
           keyWrite := Bool(true)
@@ -90,7 +93,7 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
     val hasher = Module(new PearsonHasher(HashBytes, KeyAddrSize))
     hasher.io.keyLen := keyLen
     hasher.io.keyData.valid := hashInputValid
-    hasher.io.keyData.bits := io.keyIncoming.bits
+    hasher.io.keyData.bits := io.keyData.bits
     for (i <- 0 until HashBytes)
       hasher.io.romData(i) := rom(hasher.io.romAddr(i))
     results(hashind) := hasher.io.result.bits
@@ -99,19 +102,22 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int)
 
   io.hashOut.valid := (state === s_finish)
   io.hashOut.bits.len := keyLen
-  io.keyIncoming.ready := (state != s_finish)
+  io.hashOut.bits.tag := keyTag
+  io.keyInfo.ready := (state === s_wait)
+  io.keyData.ready := (state === s_read)
 }
 
-class HasherWriterSetup(val HashSize: Int, val WordSize: Int, val KeySize: Int)
-    extends Module {
+class HasherWriterSetup(val HashSize: Int, val WordSize: Int,
+    KeySize: Int, TagSize: Int) extends Module {
   val NumWords = KeySize / WordSize
   val ByteShift = log2Up(WordSize) - 3
   val KeyLenSize = log2Up(KeySize)
   val KeyAddrSize = KeyLenSize - ByteShift
 
   val io = new Bundle {
-    val keyIncoming = Decoupled(UInt(width = 8)).flip
-    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize))
+    val keyData = Decoupled(UInt(width = 8)).flip
+    val keyInfo = Decoupled(new KeyInfo(KeyLenSize, TagSize)).flip
+    val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize))
 
     val keyReadAddr = UInt(INPUT, KeyAddrSize)
     val keyReadData = UInt(OUTPUT, WordSize)
@@ -119,9 +125,10 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int, val KeySize: Int)
 
   val mem = Mem(UInt(width = WordSize), NumWords)
 
-  val hw = Module(new HasherWriter(HashSize, WordSize, KeySize))
-  hw.io.keyIncoming <> io.keyIncoming
-  hw.io.hashOut     <> io.hashOut
+  val hw = Module(new HasherWriter(HashSize, WordSize, KeySize, TagSize))
+  hw.io.keyData <> io.keyData
+  hw.io.keyInfo <> io.keyInfo
+  hw.io.hashOut <> io.hashOut
 
   when (hw.io.keyWrite) {
     mem(hw.io.keyWriteAddr) := hw.io.keyWriteData
@@ -136,15 +143,20 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
   val key = "asdfklj;kadgjaskn23kgnas"
   val keyWords = messToWords(key, WordBytes)
 
-  poke(c.io.keyIncoming.valid, 1)
-  poke(c.io.keyIncoming.bits, key.length)
+  expect(c.io.keyInfo.ready, 1)
+  poke(c.io.keyInfo.valid, 1)
+  poke(c.io.keyInfo.bits.len, key.length)
+  poke(c.io.keyInfo.bits.tag, 2)
   step(1)
-  expect(c.io.keyIncoming.ready, 1)
+  poke(c.io.keyInfo.valid, 0)
+  step(1)
+
+  poke(c.io.keyData.valid, 1)
 
   for (byte <- key) {
-    poke(c.io.keyIncoming.bits, byte)
+    expect(c.io.keyData.ready, 1)
+    poke(c.io.keyData.bits, byte)
     step(1)
-    expect(c.io.keyIncoming.ready, 1)
   }
 
   val hash1 = computeHash(pearsonRomValues1, key, HashBytes) % (1 << c.HashSize)
@@ -156,10 +168,11 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
   expect(c.io.hashOut.bits.hash1, hash1)
   expect(c.io.hashOut.bits.hash2, hash2)
   expect(c.io.hashOut.bits.len, key.length)
-  expect(c.io.keyIncoming.ready, 0)
+  expect(c.io.hashOut.bits.tag, 2)
+  expect(c.io.keyData.ready, 0)
 
   poke(c.io.hashOut.ready, 0)
-  poke(c.io.keyIncoming.valid, 0)
+  poke(c.io.keyData.valid, 0)
 
   for (i <- 0 until keyWords.length) {
     poke(c.io.keyReadAddr, i)
@@ -170,7 +183,7 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
 
 object HasherWriterMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new HasherWriterSetup(10, 8, 256))) {
+    chiselMainTest(args, () => Module(new HasherWriterSetup(10, 8, 256, 4))) {
       c => new HasherWriterTest(c)
     }
   }
