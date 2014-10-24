@@ -33,6 +33,10 @@ class LookupPipeline(
     val allKeyAddr = UInt(INPUT, log2Up(AllKeyWords))
     val allKeyData = UInt(INPUT, WordSize)
     val allKeyWrite = Bool(INPUT)
+
+    val keyLenAddr = UInt(INPUT, HashSize)
+    val keyLenData = UInt(INPUT, KeyLenSize)
+    val keyLenWrite = Bool(INPUT)
   }
 
   val hasherwriter = Module(
@@ -56,6 +60,7 @@ class LookupPipeline(
 
   val curKeyMem = Mem(UInt(width = WordSize), 2 * CurKeyWords)
   val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
+  val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
   when (curWrite) {
     curKeyMem(curWriteAddr) := curWriteData
@@ -65,8 +70,13 @@ class LookupPipeline(
     allKeyMem(io.allKeyAddr) := io.allKeyData
   }
 
+  when (io.keyLenWrite) {
+    lenMem(io.keyLenAddr) := io.keyLenData
+  }
+
   keycompare.io.curKeyData := curKeyMem(curReadAddr)
   keycompare.io.allKeyData := allKeyMem(allReadAddr)
+  keycompare.io.lenData := lenMem(keycompare.io.lenAddr)
 
   when (hasherwriter.io.hashOut.valid && keycompare.io.hashIn.ready) {
     swapped := !swapped
@@ -87,21 +97,23 @@ class LookupPipeline(
 class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   val WordBytes = c.WordSize / 8
   val HashBytes = (c.HashSize - 1) / 8 + 1
-  val KeyWords = c.KeySize / WordBytes
 
-  def writeKeyData(start: BigInt, key: String) {
+  def writeKeyData(hash: BigInt, key: String) {
     val keyWords = messToWords(key, WordBytes)
-    poke(c.io.allKeyWrite, 1)
-    poke(c.io.allKeyAddr, start)
-    poke(c.io.allKeyData, key.length)
+    val start = hash * c.KeySize / WordBytes
+    poke(c.io.keyLenWrite, 1)
+    poke(c.io.keyLenAddr, hash)
+    poke(c.io.keyLenData, key.length)
     step(1)
+    poke(c.io.keyLenWrite, 0)
+
+    poke(c.io.allKeyWrite, 1)
     for (i <- 0 until keyWords.length) {
-      poke(c.io.allKeyAddr, start + i + 1)
+      poke(c.io.allKeyAddr, start + i)
       poke(c.io.allKeyData, keyWords(i))
       step(1)
     }
     poke(c.io.allKeyWrite, 0)
-    step(1)
   }
 
   def writeValue(hash: BigInt, start: Int, value: String) {
@@ -186,9 +198,9 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
   printf("hashes: %d %d %d\n", hash1, hash2, hash3)
 
-  writeKeyData(hash1 * KeyWords, key1)
-  writeKeyData(hash2 * KeyWords, key2)
-  writeKeyData(hash3 * KeyWords, key3)
+  writeKeyData(hash1, key1)
+  writeKeyData(hash2, key2)
+  writeKeyData(hash3, key3)
 
   writeValue(hash1, 0, value1)
   writeValue(hash2, value1.length, value2)

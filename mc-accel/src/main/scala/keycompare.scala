@@ -14,31 +14,36 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val curKeyData = UInt(INPUT, WordSize)
     val allKeyAddr = UInt(OUTPUT, HashSize + KeyAddrSize)
     val allKeyData = UInt(INPUT, WordSize)
+    val lenAddr = UInt(OUTPUT, HashSize)
+    val lenData = UInt(INPUT, KeyLenSize)
     val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize)).flip
     val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
   }
 
   val index = Reg(UInt(width = KeyAddrSize))
+  val lenAddr = Reg(UInt(width = HashSize))
+
   val curInfo = Reg(new HashInfo(HashSize, KeyLenSize, TagSize))
   val checkFirst = Reg(Bool())
   val curHash = Mux(checkFirst, curInfo.hash1, curInfo.hash2)
 
-  // the addresses will be delayed by one going out
-  // first data is word is at index 1, since index 0 is for length
-  io.curKeyAddr := index - UInt(1)
+  // curKeyAddr and allKeyAddr will be delayed by one cycle outside
+  // lenAddr should not be delayed
+  io.curKeyAddr := index
   io.allKeyAddr := Cat(curHash, index)
+  io.lenAddr := lenAddr
 
   val wordLen = curInfo.len(KeyLenSize - 1, WordShift)
   val reachedEnd = if (WordShift == 0) {
-    index === wordLen + UInt(1)
+    index === wordLen
   } else {
     val byteOff = curInfo.len(WordShift - 1, 0)
     Mux(byteOff === UInt(0),
-      index === wordLen + UInt(1), index === wordLen + UInt(2))
+      index === wordLen, index === wordLen + UInt(1))
   }
 
   val (s_wait :: s_delay_len :: s_check_len ::
-    s_delay_data :: s_check_data :: s_handoff :: Nil) = Enum(UInt(), 6)
+    s_check_data :: s_handoff :: Nil) = Enum(UInt(), 5)
   val state = Reg(init = s_wait)
 
   val hashFound = Reg(Bool())
@@ -51,30 +56,27 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
 
   switch (state) {
     is (s_wait) {
+      checkFirst := Bool(true)
+      hashFound := Bool(false)
       when (io.hashIn.valid) {
         curInfo := io.hashIn.bits
-        checkFirst := Bool(true)
-        index := UInt(0)
         state := s_delay_len
-        hashFound := Bool(false)
       }
     }
     is (s_delay_len) {
+      lenAddr := curHash
       state := s_check_len
     }
     is (s_check_len) {
-      when (io.allKeyData(KeyAddrSize - 1, 0) === curInfo.len) {
-        state := s_delay_data
-        index := UInt(1)
+      when (io.lenData === curInfo.len) {
+        state := s_check_data
+        index := UInt(0)
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
         state := s_delay_len
       } .otherwise {
         state := s_handoff
       }
-    }
-    is (s_delay_data) {
-      state := s_check_data
     }
     is (s_check_data) {
       when (io.curKeyData != io.allKeyData) {
@@ -118,6 +120,9 @@ class KeyCompareSetup(
     val allKeyAddr = UInt(INPUT, KeyAddrSize + HashSize)
     val allKeyData = UInt(INPUT, WordSize)
     val allKeyWrite = Bool(INPUT)
+    val lenAddr = UInt(INPUT, HashSize)
+    val lenData = UInt(INPUT, KeyLenSize)
+    val lenWrite = Bool(INPUT)
     val hash1 = UInt(INPUT, HashSize)
     val hash2 = UInt(INPUT, HashSize)
     val len = UInt(INPUT, KeyLenSize)
@@ -133,6 +138,7 @@ class KeyCompareSetup(
 
   val curKeyMem = Mem(UInt(width = WordSize), CurKeyWords)
   val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
+  val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
   val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize, TagSize))
   keycomp.io.hashIn.bits.hash1 := io.hash1
@@ -153,12 +159,18 @@ class KeyCompareSetup(
   val allKeyAddr = Reg(next = keycomp.io.allKeyAddr)
   keycomp.io.allKeyData := allKeyMem(allKeyAddr)
 
+  keycomp.io.lenData := lenMem(keycomp.io.lenAddr)
+
   when (io.curKeyWrite) {
     curKeyMem(io.curKeyAddr) := io.curKeyData
   }
 
   when (io.allKeyWrite) {
     allKeyMem(io.allKeyAddr) := io.allKeyData
+  }
+
+  when (io.lenWrite) {
+    lenMem(io.lenAddr) := io.lenData
   }
 }
 
@@ -180,14 +192,18 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
     poke(c.io.curKeyWrite, 0)
   }
 
-  def writeKeyData(start: Int, key: String) {
+  def writeKeyData(hash: Int, key: String) {
     val keyWords = messToWords(key, WordBytes)
-    poke(c.io.allKeyWrite, 1)
-    poke(c.io.allKeyAddr, start)
-    poke(c.io.allKeyData, key.length)
+    val start = hash * c.MaxKeySize / WordBytes
+    poke(c.io.lenWrite, 1)
+    poke(c.io.lenAddr, hash)
+    poke(c.io.lenData, key.length)
     step(1)
+    poke(c.io.lenWrite, 0)
+
+    poke(c.io.allKeyWrite, 1)
     for (i <- 0 until keyWords.length) {
-      poke(c.io.allKeyAddr, start + i + 1)
+      poke(c.io.allKeyAddr, start + i)
       poke(c.io.allKeyData, keyWords(i))
       step(1)
     }
@@ -233,8 +249,8 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
 
   writeCurKey(key1)
   writeKeyData(0, key1)
-  writeKeyData(c.MaxKeySize / WordBytes, key2)
-  writeKeyData(2 * c.MaxKeySize / WordBytes, key3)
+  writeKeyData(1, key2)
+  writeKeyData(2, key3)
 
   poke(c.io.len, key1.length)
 
