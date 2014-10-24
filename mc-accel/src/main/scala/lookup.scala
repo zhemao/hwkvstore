@@ -16,8 +16,17 @@ class LookupPipeline(
   val ValAddrSize = log2Up(ValCacheSize)
 
   val io = new Bundle {
-    val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
-    val keyData = Decoupled(UInt(width = 8)).flip
+    val lock = Bool(INPUT)
+    val halted = Bool(OUTPUT)
+    val writemode = Bool(INPUT)
+
+    val readKeyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
+    val readKeyData = Decoupled(UInt(width = 8)).flip
+
+    val writeKeyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
+    val writeKeyData = Decoupled(UInt(width = 8)).flip
+
+    val hashSel = Decoupled(new HashSelection(HashSize, TagSize))
 
     val resultInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
     val resultData = Decoupled(UInt(width = 8))
@@ -41,8 +50,20 @@ class LookupPipeline(
 
   val hasherwriter = Module(
     new HasherWriter(HashSize, WordSize, KeySize, TagSize))
-  hasherwriter.io.keyData <> io.keyData
-  hasherwriter.io.keyInfo <> io.keyInfo
+  hasherwriter.io.lock    <> io.lock
+  hasherwriter.io.keyData.bits := Mux(io.writemode,
+    io.writeKeyData.bits, io.readKeyData.bits)
+  hasherwriter.io.keyData.valid := Mux(io.writemode,
+    io.writeKeyData.valid, io.readKeyData.valid)
+  hasherwriter.io.keyInfo.bits := Mux(io.writemode,
+    io.writeKeyInfo.bits, io.readKeyInfo.bits)
+  hasherwriter.io.keyInfo.valid := Mux(io.writemode,
+    io.writeKeyInfo.valid, io.readKeyInfo.valid)
+
+  io.readKeyInfo.ready := hasherwriter.io.keyInfo.ready && !io.writemode
+  io.writeKeyInfo.ready := hasherwriter.io.keyInfo.ready && io.writemode
+  io.readKeyData.ready := hasherwriter.io.keyData.ready && !io.writemode
+  io.writeKeyData.ready := hasherwriter.io.keyData.ready && io.writemode
 
   val keycompare = Module(
     new KeyCompare(HashSize, WordSize, KeySize, TagSize))
@@ -83,7 +104,6 @@ class LookupPipeline(
   }
 
   val valcache = Module(new ValueCache(NumKeys, ValCacheSize, TagSize))
-  valcache.io.hashIn           <> keycompare.io.hashOut
   valcache.io.resultInfo       <> io.resultInfo
   valcache.io.resultData       <> io.resultData
   valcache.io.cacheWriteAddr   <> io.cacheWriteAddr
@@ -92,6 +112,17 @@ class LookupPipeline(
   valcache.io.addrLenWriteAddr <> io.addrLenWriteAddr
   valcache.io.addrLenWriteData <> io.addrLenWriteData
   valcache.io.addrLenWriteEn   <> io.addrLenWriteEn
+
+  keycompare.io.hashOut.ready := Mux(io.writemode,
+    io.hashSel.ready, valcache.io.hashIn.ready)
+  valcache.io.hashIn.bits := keycompare.io.hashOut.bits
+  valcache.io.hashIn.valid := keycompare.io.hashOut.valid && !io.writemode
+  io.hashSel.bits := keycompare.io.hashOut.bits
+  io.hashSel.valid := keycompare.io.hashOut.valid && io.writemode
+
+  io.halted := hasherwriter.io.halted &&
+    keycompare.io.hashIn.ready &&
+    valcache.io.hashIn.ready
 }
 
 class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
@@ -135,24 +166,24 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
   def streamCurKey(key: String, tag: Int) {
     isTrace = false
-    println(s"Waiting for keyInfo ready on ${tag}")
-    while (peek(c.io.keyInfo.ready) == 0)
+    println(s"Waiting for readKeyInfo ready on ${tag}")
+    while (peek(c.io.readKeyInfo.ready) == 0)
       step(1)
-    poke(c.io.keyInfo.valid, 1)
-    poke(c.io.keyInfo.bits.len, key.length)
-    poke(c.io.keyInfo.bits.tag, tag)
+    poke(c.io.readKeyInfo.valid, 1)
+    poke(c.io.readKeyInfo.bits.len, key.length)
+    poke(c.io.readKeyInfo.bits.tag, tag)
     step(1)
-    poke(c.io.keyInfo.valid, 0)
+    poke(c.io.readKeyInfo.valid, 0)
     step(1)
-    println(s"Waiting for keyData ready on ${tag}")
-    while (peek(c.io.keyData.ready) == 0)
+    println(s"Waiting for readKeyData ready on ${tag}")
+    while (peek(c.io.readKeyData.ready) == 0)
       step(1)
-    poke(c.io.keyData.valid, 1)
+    poke(c.io.readKeyData.valid, 1)
     for (ch <- key) {
-      poke(c.io.keyData.bits, ch)
+      poke(c.io.readKeyData.bits, ch)
       step(1)
     }
-    poke(c.io.keyData.valid, 0)
+    poke(c.io.readKeyData.valid, 0)
     step(1)
     isTrace = true
   }
@@ -214,11 +245,13 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   // check the first result and stream in the last key
   checkResult(value1, 1)
   streamCurKey(key4, 4)
+  poke(c.io.lock, 1)
 
   // check the last three keys
   checkResult(value2, 2)
   checkResult(value3, 3)
   checkResult(value4, 4)
+  expect(c.io.halted, 1)
 }
 
 object LookupPipelineMain {

@@ -20,6 +20,9 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val keyData = Decoupled(UInt(width = 8)).flip
     val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
     val hashOut = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize))
+
+    val lock = Bool(INPUT)
+    val halted = Bool(OUTPUT)
   }
 
   val keyLen = Reg(UInt(width = KeyLenSize))
@@ -46,7 +49,7 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   switch (state) {
     is (s_wait) {
       restart := Bool(false)
-      when (io.keyInfo.valid) {
+      when (io.keyInfo.valid && !io.lock) {
         keyLen := io.keyInfo.bits.len
         keyTag := io.keyInfo.bits.tag
         index := UInt(0)
@@ -103,8 +106,9 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   io.hashOut.valid := (state === s_finish)
   io.hashOut.bits.len := keyLen
   io.hashOut.bits.tag := keyTag
-  io.keyInfo.ready := (state === s_wait)
+  io.keyInfo.ready := (state === s_wait && !io.lock)
   io.keyData.ready := (state === s_read)
+  io.halted := (state === s_wait && io.lock)
 }
 
 class HasherWriterSetup(val HashSize: Int, val WordSize: Int,
