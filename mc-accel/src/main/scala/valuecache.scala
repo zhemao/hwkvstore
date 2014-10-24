@@ -40,15 +40,25 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val tag = Reg(UInt(width = TagSize))
   val len = Reg(UInt(width = AddrSize))
 
-  val (s_wait :: s_lookup :: s_notify :: s_stream :: Nil) = Enum(UInt(), 4)
+  val (s_wait :: s_notfound :: s_lookup :: s_notify :: s_stream :: Nil) = Enum(UInt(), 5)
   val state = Reg(init = s_wait)
 
   switch (state) {
     is (s_wait) {
-      when (io.hashIn.valid && io.hashIn.bits.found) {
-        addrLenAddr := io.hashIn.bits.hash
+      when (io.hashIn.valid) {
         tag := io.hashIn.bits.tag
-        state := s_lookup
+        when (io.hashIn.bits.found) {
+          addrLenAddr := io.hashIn.bits.hash
+          state := s_lookup
+        } .otherwise {
+          len := UInt(0)
+          state := s_notfound
+        }
+      }
+    }
+    is (s_notfound) {
+      when (io.resultInfo.ready) {
+        state := s_wait
       }
     }
     is (s_lookup) {
@@ -77,7 +87,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   io.hashIn.ready := (state === s_wait)
   io.resultInfo.bits.len := len
   io.resultInfo.bits.tag := tag
-  io.resultInfo.valid := (state === s_notify)
+  io.resultInfo.valid := (state === s_notify || state === s_notfound)
   io.resultData.valid := (state === s_stream)
   io.resultData.bits := cacheData
 }

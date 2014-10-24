@@ -173,10 +173,12 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   val key1 = "abcdefghijklmnopqrstuvwxyz"
   val key2 = "abcdefghijklmnopqrstuvwxzy"
   val key3 = "0123456789"
+  val key4 = "abcd"
 
   val value1 = "askdfj;j23jfasdkfjdasdfjkajsdfj"
   val value2 = "aknqqnn34jasdkfjk"
   val value3 = "2934inbvkdswfjkdfj"
+  val value4 = ""
 
   val hash1 = computeHash(pearsonRomValues1, key1, HashBytes) % c.NumKeys
   val hash2 = computeHash(pearsonRomValues1, key2, HashBytes) % c.NumKeys
@@ -192,13 +194,19 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   writeValue(hash2, value1.length, value2)
   writeValue(hash3, value1.length + value2.length, value3)
 
+  // stream in the first three keys to fill up the pipeline
   streamCurKey(key1, 1)
   streamCurKey(key2, 2)
   streamCurKey(key3, 3)
 
+  // check the first result and stream in the last key
   checkResult(value1, 1)
+  streamCurKey(key4, 4)
+
+  // check the last three keys
   checkResult(value2, 2)
   checkResult(value3, 3)
+  checkResult(value4, 4)
 }
 
 object LookupPipelineMain {
