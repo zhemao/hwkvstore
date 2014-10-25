@@ -1,5 +1,11 @@
 TEST_FLAGS = --compile --genHarness --test --vcd --debug --targetDir build/emulator/generated-src
 
+kvstore-test:
+	sbt "run-main McAccel.KeyValueStoreMain $(TEST_FLAGS)"
+
+memhandler-test:
+	sbt "run-main McAccel.MemoryHandlerMain $(TEST_FLAGS)"
+
 lookup-test:
 	sbt "run-main McAccel.LookupPipelineMain $(TEST_FLAGS)"
 

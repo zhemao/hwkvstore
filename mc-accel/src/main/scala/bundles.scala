@@ -40,3 +40,15 @@ class AddrLenPair(val AddrSize: Int, val dir: IODirection = OUTPUT)
   override def clone =
     (new AddrLenPair(AddrSize, dir)).asInstanceOf[this.type]
 }
+
+class MemCommand(val ReadAddrSize: Int, val WriteAddrSize: Int,
+    val ActionSize: Int, val dir: IODirection = OUTPUT) extends Bundle {
+  val action = Bits(dir, ActionSize)
+  val readstart = UInt(dir, ReadAddrSize)
+  val writestart = UInt(dir, WriteAddrSize)
+  val len = UInt(dir, ReadAddrSize)
+
+  override def clone =
+    (new MemCommand(ReadAddrSize, WriteAddrSize, ActionSize, dir))
+      .asInstanceOf[this.type]
+}

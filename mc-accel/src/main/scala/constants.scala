@@ -39,4 +39,11 @@ object Constants {
     146,113,77,143,4,197,15,45,122,231,38,44,136,217,167,205,
     152,203,66,249,27,171,164,72,219,221,110,168,74,239,154,96
   )
+
+  val SwitchModeInst = Bits(0)
+  val DelKeyInst = Bits(1)
+
+  val StreamKeyAction = Bits(0)
+  val CopyKeyAction   = Bits(1)
+  val CopyValueAction = Bits(2)
 }
