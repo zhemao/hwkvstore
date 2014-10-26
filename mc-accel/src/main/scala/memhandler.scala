@@ -19,7 +19,8 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
     val allKeyData = UInt(OUTPUT, WordSize)
     val allKeyWrite = Bool(OUTPUT)
 
-    val cmd = Decoupled(new MemCommand(coreDataBits, ValAddrSize, 2)).flip
+    val cmd = Decoupled(
+      new MemCommand(coreDataBits, ValAddrSize, ActionSize)).flip
   }
 
   val BytesPerInputWord = coreDataBits / 8

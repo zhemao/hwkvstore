@@ -46,4 +46,8 @@ object Constants {
   val StreamKeyAction = Bits(0)
   val CopyKeyAction   = Bits(1)
   val CopyValueAction = Bits(2)
+
+  val ActionSize = 2
+
+  val HashNotFound = 0xffffff
 }
