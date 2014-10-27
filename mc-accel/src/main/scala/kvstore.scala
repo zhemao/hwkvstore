@@ -6,7 +6,7 @@ import McAccel.TestUtils._
 import McAccel.Constants._
 
 class KeyValueStore (
-    WordSize: Int, KeySize: Int, NumKeys: Int,
+    WordSize: Int, KeySize: Int, val NumKeys: Int,
     ValCacheSize: Int, TagSize: Int) extends Module {
   val WordBytes = WordSize / 8
   val CurKeyWords = KeySize / WordBytes
@@ -39,6 +39,7 @@ class KeyValueStore (
   ctrl.io.keyInfo <> lookup.io.writeKeyInfo
   ctrl.io.keyData <> lookup.io.writeKeyData
   ctrl.io.hashSel <> lookup.io.hashSel
+  ctrl.io.copyReq <> lookup.io.copyReq
   ctrl.io.cacheWriteAddr <> lookup.io.cacheWriteAddr
   ctrl.io.cacheWriteData <> lookup.io.cacheWriteData
   ctrl.io.cacheWriteEn   <> lookup.io.cacheWriteEn
@@ -51,6 +52,7 @@ class KeyValueStore (
   ctrl.io.lock      <> lookup.io.lock
   ctrl.io.halted    <> lookup.io.halted
   ctrl.io.writemode <> lookup.io.writemode
+  ctrl.io.findAvailable <> lookup.io.findAvailable
 
   io.writeready := ctrl.io.writemode  && !lookup.io.halted
   io.readready  := !ctrl.io.writemode && !lookup.io.halted
@@ -82,7 +84,6 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
 
   until (Cmd_IHandler.isIdle && !isBusy, 10) {
-    Resp_OHandler.process()
   }
   expect(c.io.writeready, 1)
 
@@ -90,15 +91,28 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   Cmd_IHandler.inputs.enqueue(TestCmd(delKey, 0, key.length))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
-    peek(c.io.rocc.cmd.ready)
-    Resp_OHandler.process()
     memory.process()
   }
 
-  assert( !Resp_OHandler.outputs.isEmpty, "No response found" )
-  val resp = Resp_OHandler.outputs.dequeue()
+  assert( Resp_OHandler.outputs.size == 1,
+    s"Expected 1 output in queue, instead there are ${Resp_OHandler.outputs.size}" )
+  var resp = Resp_OHandler.outputs.dequeue()
   assert( resp.data == HashNotFound,
     s"Expected HashNotFound, instead got ${resp.data}" )
+
+  val HashBytes = (c.HashSize - 1) / 8 + 1
+  val hash = computeHash(pearsonRomValues1, key, HashBytes) % c.NumKeys
+
+  val resKey = TestInst(2, 0, 1, 2, true, true, true)
+  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
+
+  until (Cmd_IHandler.isIdle && !isBusy, 450) {
+    memory.process()
+  }
+
+  assert(!Resp_OHandler.outputs.isEmpty, "No response found")
+  resp = Resp_OHandler.outputs.dequeue()
+  assert(resp.data == hash, s"Expected ${hash} instead got ${resp.data}")
 }
 
 object KeyValueStoreMain {

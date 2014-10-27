@@ -42,6 +42,7 @@ object Constants {
 
   val SwitchModeInst = Bits(0)
   val DelKeyInst = Bits(1)
+  val ReserveKeyInst = Bits(2)
 
   val StreamKeyAction = Bits(0)
   val CopyKeyAction   = Bits(1)

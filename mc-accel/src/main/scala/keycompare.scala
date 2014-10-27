@@ -18,6 +18,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val lenData = UInt(INPUT, KeyLenSize)
     val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize)).flip
     val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
+    val findAvailable = Bool(INPUT)
   }
 
   val index = Reg(UInt(width = KeyAddrSize))
@@ -68,7 +69,10 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       state := s_check_len
     }
     is (s_check_len) {
-      when (io.lenData === curInfo.len) {
+      when (io.findAvailable && io.lenData === UInt(0)) {
+        hashFound := Bool(true)
+        state := s_handoff
+      } .elsewhen (io.lenData === curInfo.len) {
         state := s_check_data
         index := UInt(0)
       } .elsewhen (checkFirst) {
@@ -134,6 +138,7 @@ class KeyCompareSetup(
     val done = Bool(OUTPUT)
     val found = Bool(OUTPUT)
     val outtag = UInt(OUTPUT, TagSize)
+    val findAvailable = Bool(INPUT)
   }
 
   val curKeyMem = Mem(UInt(width = WordSize), CurKeyWords)
@@ -147,6 +152,7 @@ class KeyCompareSetup(
   keycomp.io.hashIn.bits.tag := io.intag
   keycomp.io.hashIn.valid := io.start
   keycomp.io.hashOut.ready := io.finish
+  keycomp.io.findAvailable := io.findAvailable
   io.ready := keycomp.io.hashIn.ready
   io.done := keycomp.io.hashOut.valid
   io.hashsel := keycomp.io.hashOut.bits.hash
@@ -262,6 +268,10 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
 
   // check that we find no answer when neither of the hashes is 0
   checkHashes(1, 2, 2)
+
+  poke(c.io.findAvailable, 1)
+  checkHashes(1, 3, 1)
+  checkHashes(2, 3, 1)
 }
 
 object KeyCompareMain {

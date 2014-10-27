@@ -19,6 +19,7 @@ class LookupPipeline(
     val lock = Bool(INPUT)
     val halted = Bool(OUTPUT)
     val writemode = Bool(INPUT)
+    val findAvailable = Bool(INPUT)
 
     val readKeyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
     val readKeyData = Decoupled(UInt(width = 8)).flip
@@ -27,6 +28,7 @@ class LookupPipeline(
     val writeKeyData = Decoupled(UInt(width = 8)).flip
 
     val hashSel = Decoupled(new HashSelection(HashSize, TagSize))
+    val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize)).flip
 
     val resultInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
     val resultData = Decoupled(UInt(width = 8))
@@ -38,10 +40,6 @@ class LookupPipeline(
     val addrLenWriteAddr = UInt(INPUT, HashSize)
     val addrLenWriteData = new AddrLenPair(ValAddrSize, INPUT)
     val addrLenWriteEn = Bool(INPUT)
-
-    val allKeyAddr = UInt(INPUT, log2Up(AllKeyWords))
-    val allKeyData = UInt(INPUT, WordSize)
-    val allKeyWrite = Bool(INPUT)
 
     val keyLenAddr = UInt(INPUT, HashSize)
     val keyLenData = UInt(INPUT, KeyLenSize)
@@ -68,36 +66,46 @@ class LookupPipeline(
   val keycompare = Module(
     new KeyCompare(HashSize, WordSize, KeySize, TagSize))
   keycompare.io.hashIn <> hasherwriter.io.hashOut
+  keycompare.io.findAvailable := io.findAvailable
 
-  val swapped = Reg(init = Bool(false))
-  val kcCurAddr = Cat(!swapped, keycompare.io.curKeyAddr)
-  val hwWriteAddr = Cat(swapped, hasherwriter.io.keyWriteAddr)
-
-  val allReadAddr = Reg(next = keycompare.io.allKeyAddr)
-  val curReadAddr = Reg(next = kcCurAddr)
-  val curWriteAddr = Reg(next = hwWriteAddr)
-  val curWriteData = Reg(next = hasherwriter.io.keyWriteData)
-  val curWrite = Reg(next = hasherwriter.io.keyWrite)
+  val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
+  keycopy.io.copyReq <> io.copyReq
 
   val curKeyMem = Mem(UInt(width = WordSize), 2 * CurKeyWords)
   val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
+  val swapped = Reg(init = Bool(false))
+  val curReadAddrRaw = Mux(keycopy.io.selCopy,
+    keycopy.io.curKeyAddr, keycompare.io.curKeyAddr)
+  val curReadAddrExt = Cat(!swapped, curReadAddrRaw)
+  val hwWriteAddr = Cat(swapped, hasherwriter.io.keyWriteAddr)
+
+  val allReadAddr = Reg(next = keycompare.io.allKeyAddr)
+  val curReadAddr = Reg(next = curReadAddrExt)
+  val curReadData = curKeyMem(curReadAddr)
+  val curWriteAddr = Reg(next = hwWriteAddr)
+  val curWriteData = Reg(next = hasherwriter.io.keyWriteData)
+  val curWrite = Reg(next = hasherwriter.io.keyWrite)
+
+
   when (curWrite) {
     curKeyMem(curWriteAddr) := curWriteData
   }
 
-  when (io.allKeyWrite) {
-    allKeyMem(io.allKeyAddr) := io.allKeyData
+  when (keycopy.io.allKeyWrite) {
+    allKeyMem(keycopy.io.allKeyAddr) := keycopy.io.allKeyData
   }
 
   when (io.keyLenWrite) {
     lenMem(io.keyLenAddr) := io.keyLenData
   }
 
-  keycompare.io.curKeyData := curKeyMem(curReadAddr)
+  keycompare.io.curKeyData := curReadData
   keycompare.io.allKeyData := allKeyMem(allReadAddr)
   keycompare.io.lenData := lenMem(keycompare.io.lenAddr)
+
+  keycopy.io.curKeyData := curReadData
 
   when (hasherwriter.io.hashOut.valid && keycompare.io.hashIn.ready) {
     swapped := !swapped
@@ -129,25 +137,8 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   val WordBytes = c.WordSize / 8
   val HashBytes = (c.HashSize - 1) / 8 + 1
 
-  def writeKeyData(hash: BigInt, key: String) {
-    val keyWords = messToWords(key, WordBytes)
-    val start = hash * c.KeySize / WordBytes
-    poke(c.io.keyLenWrite, 1)
-    poke(c.io.keyLenAddr, hash)
-    poke(c.io.keyLenData, key.length)
-    step(1)
-    poke(c.io.keyLenWrite, 0)
-
-    poke(c.io.allKeyWrite, 1)
-    for (i <- 0 until keyWords.length) {
-      poke(c.io.allKeyAddr, start + i)
-      poke(c.io.allKeyData, keyWords(i))
-      step(1)
-    }
-    poke(c.io.allKeyWrite, 0)
-  }
-
   def writeValue(hash: BigInt, start: Int, value: String) {
+    isTrace = false
     poke(c.io.addrLenWriteAddr, hash)
     poke(c.io.addrLenWriteData.addr, start)
     poke(c.io.addrLenWriteData.len, value.length)
@@ -162,6 +153,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
       step(1)
     }
     poke(c.io.cacheWriteEn, 0)
+    isTrace = true
   }
 
   def streamCurKey(key: String, tag: Int) {
@@ -213,6 +205,61 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     poke(c.io.resultData.ready, 0)
   }
 
+  def writeKey(key: String, tag: Int) = {
+    isTrace = false
+    println(s"Waiting for writeKeyInfo ready on ${tag}")
+    while (peek(c.io.writeKeyInfo.ready) == 0)
+      step(1)
+    poke(c.io.writeKeyInfo.valid, 1)
+    poke(c.io.writeKeyInfo.bits.len, key.length)
+    poke(c.io.writeKeyInfo.bits.tag, tag)
+    step(1)
+    poke(c.io.writeKeyInfo.valid, 0)
+    step(1)
+    println(s"Waiting for writeKeyData ready on ${tag}")
+    while (peek(c.io.writeKeyData.ready) == 0)
+      step(1)
+    poke(c.io.writeKeyData.valid, 1)
+    for (ch <- key) {
+      poke(c.io.writeKeyData.bits, ch)
+      step(1)
+    }
+    poke(c.io.writeKeyData.valid, 0)
+    step(1)
+
+    poke(c.io.hashSel.ready, 1)
+    println(s"Waiting for hashSel valid on ${tag}")
+    while (peek(c.io.hashSel.valid) == 0) {
+      step(1)
+    }
+    step(1)
+    poke(c.io.hashSel.ready, 0)
+    expect(c.io.hashSel.bits.found, 1)
+    expect(c.io.hashSel.bits.tag, tag)
+    val hash = peek(c.io.hashSel.bits.hash)
+    expect(c.io.copyReq.ready, 1)
+    poke(c.io.copyReq.valid, 1)
+    poke(c.io.copyReq.bits.hash, hash)
+    poke(c.io.copyReq.bits.len, key.length)
+    step(1)
+    poke(c.io.copyReq.valid, 0)
+
+    println(s"Waiting for copyReq finish on ${tag}")
+    while (peek(c.io.copyReq.ready) == 0) {
+      step(1)
+    }
+
+    poke(c.io.keyLenAddr, hash)
+    poke(c.io.keyLenData, key.length)
+    poke(c.io.keyLenWrite, 1)
+    step(1)
+    poke(c.io.keyLenWrite, 0)
+
+    isTrace = true
+
+    hash
+  }
+
   val key1 = "abcdefghijklmnopqrstuvwxyz"
   val key2 = "abcdefghijklmnopqrstuvwxzy"
   val key3 = "0123456789"
@@ -223,19 +270,21 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   val value3 = "2934inbvkdswfjkdfj"
   val value4 = ""
 
-  val hash1 = computeHash(pearsonRomValues1, key1, HashBytes) % c.NumKeys
-  val hash2 = computeHash(pearsonRomValues1, key2, HashBytes) % c.NumKeys
-  val hash3 = computeHash(pearsonRomValues2, key3, HashBytes) % c.NumKeys
+  poke(c.io.writemode, 1)
+  poke(c.io.findAvailable, 1)
+
+  val hash1 = writeKey(key1, 1)
+  val hash2 = writeKey(key2, 2)
+  val hash3 = writeKey(key3, 3)
 
   printf("hashes: %d %d %d\n", hash1, hash2, hash3)
-
-  writeKeyData(hash1, key1)
-  writeKeyData(hash2, key2)
-  writeKeyData(hash3, key3)
 
   writeValue(hash1, 0, value1)
   writeValue(hash2, value1.length, value2)
   writeValue(hash3, value1.length + value2.length, value3)
+
+  poke(c.io.writemode, 0)
+  poke(c.io.findAvailable, 0)
 
   // stream in the first three keys to fill up the pipeline
   streamCurKey(key1, 1)

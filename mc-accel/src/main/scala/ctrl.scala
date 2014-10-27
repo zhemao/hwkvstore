@@ -18,10 +18,6 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val addrLenWriteData = new AddrLenPair(ValAddrSize, OUTPUT)
     val addrLenWriteEn = Bool(OUTPUT)
 
-    val allKeyAddr = UInt(OUTPUT, KeyAddrSize)
-    val allKeyData = UInt(OUTPUT, WordSize)
-    val allKeyWrite = Bool(OUTPUT)
-
     val keyLenAddr = UInt(OUTPUT, HashSize)
     val keyLenData = UInt(OUTPUT, KeyLenSize)
     val keyLenWrite = Bool(OUTPUT)
@@ -29,10 +25,12 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val lock = Bool(OUTPUT)
     val halted = Bool(INPUT)
     val writemode = Bool(OUTPUT)
+    val findAvailable = Bool(OUTPUT)
 
     val keyInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
     val hashSel = Decoupled(new HashSelection(HashSize, TagSize)).flip
+    val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize))
   }
 
   val writemode = Reg(init = Bool(false))
@@ -41,19 +39,23 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val wantmode = Reg(Bool())
   val result = Reg(init = Bits(0, 64))
 
+  val findAvailable = Reg(Bool())
+  io.findAvailable := findAvailable
+
   val (s_wait :: s_switch ::
-    s_delkey_send_info :: s_delkey_stream_data ::
-    s_delkey_gethash :: s_delkey_setlen ::
-    s_finish :: Nil) = Enum(UInt(), 7)
+    s_send_info :: s_stream_data :: s_gethash ::
+    s_reskey_setlen :: s_reskey_start_copy :: s_reskey_end_copy ::
+    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 10)
 
   val state = Reg(init = s_wait)
+  val found_state = Reg(init = s_wait)
 
   val action = Reg(Bits(width = ActionSize))
   val len = Reg(UInt(width = coreDataBits))
   val keytag = Reg(UInt(width = TagSize))
   val readstart = Reg(UInt(width = coreDataBits))
   val writestart = Reg(UInt(width = ValAddrSize))
-  val memCmdValid = (state === s_delkey_stream_data)
+  val memCmdValid = (state === s_stream_data)
 
   val memhandler = Module(
     new MemoryHandler(WordSize, ValAddrSize, KeyAddrSize))
@@ -70,14 +72,13 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
 
   val hash = Reg(UInt(width = HashSize))
   val addrLenData = Reg(new AddrLenPair(ValAddrSize))
-  val keyLenData = Reg(UInt(width = KeyLenSize))
-  val setLen = (state === s_delkey_setlen)
+  val setLen = Reg(init = Bool(false))
 
   io.addrLenWriteAddr := hash
   io.addrLenWriteData := addrLenData
   io.addrLenWriteEn   := setLen
   io.keyLenAddr  := hash
-  io.keyLenData  := keyLenData
+  io.keyLenData  := len(KeyLenSize - 1, 0)
   io.keyLenWrite := setLen
 
   io.lock := (state === s_switch)
@@ -87,9 +88,15 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   io.rocc.resp.bits.data := respData
   io.rocc.resp.bits.rd   := respDest
 
-  io.keyInfo.valid := (state === s_delkey_send_info)
+  io.keyInfo.valid := (state === s_send_info)
   io.keyInfo.bits.tag := keytag
   io.keyInfo.bits.len := len(KeyLenSize - 1, 0)
+
+  io.copyReq.bits.hash := hash
+  io.copyReq.bits.len := len(KeyLenSize - 1, 0)
+  io.copyReq.valid := (state === s_reskey_start_copy)
+
+  io.hashSel.ready := (state === s_gethash)
 
   switch (state) {
     is (s_wait) {
@@ -106,8 +113,18 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
             readstart := io.rocc.cmd.bits.rs1
             writestart := UInt(0)
             len := io.rocc.cmd.bits.rs2
-            keytag := UInt(0)
-            state := s_delkey_send_info
+            state := s_send_info
+            found_state := s_delkey_setlen
+            findAvailable := Bool(false)
+          }
+          is (ReserveKeyInst) {
+            action := StreamKeyAction
+            readstart := io.rocc.cmd.bits.rs1
+            writestart := UInt(0)
+            len := io.rocc.cmd.bits.rs2
+            state := s_send_info
+            found_state := s_reskey_setlen
+            findAvailable := Bool(true)
           }
         }
       }
@@ -118,24 +135,21 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
         state := s_wait
       }
     }
-    is (s_delkey_send_info) {
+    is (s_send_info) {
       when (io.keyInfo.ready) {
-        state := s_delkey_stream_data
+        state := s_stream_data
       }
     }
-    is (s_delkey_stream_data) {
+    is (s_stream_data) {
       when (memhandler.io.cmd.ready) {
-        state := s_delkey_gethash
+        state := s_gethash
       }
     }
-    is (s_delkey_gethash) {
+    is (s_gethash) {
       when (io.hashSel.valid) {
         when (io.hashSel.bits.found) {
-          addrLenData.addr := UInt(0)
-          addrLenData.len  := UInt(0)
-          keyLenData := UInt(0)
           hash := io.hashSel.bits.hash
-          state := s_delkey_setlen
+          state := found_state
         } .otherwise {
           respData := Bits(HashNotFound)
           state := s_finish
@@ -143,10 +157,33 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
       }
     }
     is (s_delkey_setlen) {
+      addrLenData.addr := UInt(0)
+      addrLenData.len  := UInt(0)
+      len := UInt(0)
+      setLen := Bool(true)
       respData := hash.toBits
       state := s_finish
     }
+    is (s_reskey_setlen) {
+      addrLenData.addr := UInt(0)
+      addrLenData.len  := UInt(0)
+      setLen := Bool(true)
+      respData := hash.toBits
+      state := s_reskey_start_copy
+    }
+    is (s_reskey_start_copy) {
+      setLen := Bool(false)
+      when (io.copyReq.ready) {
+        state := s_reskey_end_copy
+      }
+    }
+    is (s_reskey_end_copy) {
+      when (io.copyReq.ready) {
+        state := s_finish
+      }
+    }
     is (s_finish) {
+      setLen := Bool(false)
       when (io.rocc.resp.ready) {
         state := s_wait
       }

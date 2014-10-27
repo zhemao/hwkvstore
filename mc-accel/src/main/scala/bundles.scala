@@ -52,3 +52,12 @@ class MemCommand(val ReadAddrSize: Int, val WriteAddrSize: Int,
     (new MemCommand(ReadAddrSize, WriteAddrSize, ActionSize, dir))
       .asInstanceOf[this.type]
 }
+
+class CopyRequest(val HashSize: Int, val LenSize: Int,
+    val dir: IODirection = OUTPUT) extends Bundle {
+  val hash = UInt(dir, HashSize)
+  val len = UInt(dir, LenSize)
+
+  override def clone =
+    (new CopyRequest(HashSize, LenSize, dir)).asInstanceOf[this.type]
+}
