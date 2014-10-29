@@ -41,14 +41,16 @@ object Constants {
   )
 
   val SwitchModeInst = Bits(0)
-  val DelKeyInst = Bits(1)
+  val DelKeyInst     = Bits(1)
   val ReserveKeyInst = Bits(2)
+  val AssocAddrInst  = Bits(3)
+  val AssocLenInst   = Bits(4)
+  val WriteValInst   = Bits(5)
 
   val StreamKeyAction = Bits(0)
-  val CopyKeyAction   = Bits(1)
-  val CopyValueAction = Bits(2)
+  val CopyValueAction = Bits(1)
 
-  val ActionSize = 2
+  val ActionSize = 1
 
   val HashNotFound = 0xffffff
 }

@@ -46,9 +46,10 @@ class KeyValueStore (
   ctrl.io.keyLenAddr  <> lookup.io.keyLenAddr
   ctrl.io.keyLenData  <> lookup.io.keyLenData
   ctrl.io.keyLenWrite <> lookup.io.keyLenWrite
-  ctrl.io.addrLenWriteAddr <> lookup.io.addrLenWriteAddr
+  ctrl.io.addrLenAddr      <> lookup.io.addrLenAddr
   ctrl.io.addrLenWriteData <> lookup.io.addrLenWriteData
   ctrl.io.addrLenWriteEn   <> lookup.io.addrLenWriteEn
+  ctrl.io.addrLenReadData  <> lookup.io.addrLenReadData
   ctrl.io.lock      <> lookup.io.lock
   ctrl.io.halted    <> lookup.io.halted
   ctrl.io.writemode <> lookup.io.writemode
@@ -83,8 +84,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   val writeMode = TestInst(0, 0, 1, 0, false, false, false)
   Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
 
-  until (Cmd_IHandler.isIdle && !isBusy, 10) {
-  }
+  until (Cmd_IHandler.isIdle && !isBusy, 10) {}
   expect(c.io.writeready, 1)
 
   val delKey = TestInst(1, 0, 1, 2, true, true, true)
@@ -113,6 +113,68 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   assert(!Resp_OHandler.outputs.isEmpty, "No response found")
   resp = Resp_OHandler.outputs.dequeue()
   assert(resp.data == hash, s"Expected ${hash} instead got ${resp.data}")
+
+  val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
+  val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
+  val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
+  val readMode = TestInst(0, 0, 0, 0, false, false, false)
+
+  Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, 4))
+  Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
+  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 256))
+  Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
+
+  until (Cmd_IHandler.isIdle && !isBusy, 450) {
+    memory.process()
+  }
+
+  expect(c.io.readready, 1)
+
+  def streamCurKey(key: String, tag: Int) {
+    until (peek(c.io.keyInfo.ready) == 1, 450) {}
+
+    wire_poke(c.io.keyInfo.valid, 1)
+    wire_poke(c.io.keyInfo.bits.len, key.length)
+    wire_poke(c.io.keyInfo.bits.tag, tag)
+    takestep()
+    wire_poke(c.io.keyInfo.valid, 0)
+    takestep()
+
+    until (peek(c.io.keyData.ready) == 1, 450) {}
+    wire_poke(c.io.keyData.valid, 1)
+
+    for (ch <- key) {
+      wire_poke(c.io.keyData.bits, ch)
+      takestep()
+    }
+
+    wire_poke(c.io.keyData.valid, 0)
+    takestep()
+  }
+
+  def checkResult(value: String, tag: Int) {
+    until (peek(c.io.resultInfo.valid) == 1, 450) {}
+
+    expect(c.io.resultInfo.bits.len, value.length)
+    expect(c.io.resultInfo.bits.tag, tag)
+
+    wire_poke(c.io.resultInfo.ready, 1)
+    takestep()
+    wire_poke(c.io.resultInfo.ready, 0)
+    wire_poke(c.io.resultInfo.ready, 0)
+    wire_poke(c.io.resultData.ready, 1)
+
+    for (ch <- value) {
+      expect(c.io.resultData.valid, 1)
+      expect(c.io.resultData.bits, ch)
+      takestep()
+    }
+
+    wire_poke(c.io.resultData.ready, 0)
+  }
+
+  streamCurKey(key, 0)
+  checkResult(value, 0)
 }
 
 object KeyValueStoreMain {

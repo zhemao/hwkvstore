@@ -37,9 +37,10 @@ class LookupPipeline(
     val cacheWriteData = UInt(INPUT, 8)
     val cacheWriteEn = Bool(INPUT)
 
-    val addrLenWriteAddr = UInt(INPUT, HashSize)
+    val addrLenAddr = UInt(INPUT, HashSize)
     val addrLenWriteData = new AddrLenPair(ValAddrSize, INPUT)
-    val addrLenWriteEn = Bool(INPUT)
+    val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
+    val addrLenReadData = new AddrLenPair(ValAddrSize, OUTPUT)
 
     val keyLenAddr = UInt(INPUT, HashSize)
     val keyLenData = UInt(INPUT, KeyLenSize)
@@ -117,9 +118,10 @@ class LookupPipeline(
   valcache.io.cacheWriteAddr   <> io.cacheWriteAddr
   valcache.io.cacheWriteData   <> io.cacheWriteData
   valcache.io.cacheWriteEn     <> io.cacheWriteEn
-  valcache.io.addrLenWriteAddr <> io.addrLenWriteAddr
+  valcache.io.addrLenAddr      <> io.addrLenAddr
   valcache.io.addrLenWriteData <> io.addrLenWriteData
   valcache.io.addrLenWriteEn   <> io.addrLenWriteEn
+  valcache.io.addrLenReadData  <> io.addrLenReadData
 
   keycompare.io.hashOut.ready := Mux(io.writemode,
     io.hashSel.ready, valcache.io.hashIn.ready)
@@ -139,12 +141,12 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
   def writeValue(hash: BigInt, start: Int, value: String) {
     isTrace = false
-    poke(c.io.addrLenWriteAddr, hash)
+    poke(c.io.addrLenAddr, hash)
     poke(c.io.addrLenWriteData.addr, start)
     poke(c.io.addrLenWriteData.len, value.length)
-    poke(c.io.addrLenWriteEn, 1)
+    poke(c.io.addrLenWriteEn, Array[BigInt](1, 1))
     step(1)
-    poke(c.io.addrLenWriteEn, 0)
+    poke(c.io.addrLenWriteEn, Array[BigInt](0, 0))
 
     poke(c.io.cacheWriteEn, 1)
     for (i <- 0 until value.length) {

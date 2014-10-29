@@ -5,7 +5,7 @@ import Chisel.AdvTester._
 import McAccel.Constants._
 import McAccel.TestUtils._
 
-class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
+class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
       extends Module with CoreParameters with MemoryOpConstants {
   val io = new Bundle {
     val mem = new HellaCacheIO
@@ -15,25 +15,17 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
     val cacheWriteData = UInt(OUTPUT, 8)
     val cacheWriteEn = Bool(OUTPUT)
 
-    val allKeyAddr = UInt(OUTPUT, KeyAddrSize)
-    val allKeyData = UInt(OUTPUT, WordSize)
-    val allKeyWrite = Bool(OUTPUT)
-
     val cmd = Decoupled(
       new MemCommand(coreDataBits, ValAddrSize, ActionSize)).flip
   }
 
   val BytesPerInputWord = coreDataBits / 8
   val InputByteShift = log2Up(BytesPerInputWord)
-  val BytesPerOutputWord = WordSize / 8
-  val OutputByteShift = log2Up(BytesPerOutputWord)
-  val OutputWordsPerInputWord = coreDataBits / WordSize
 
-  val (s_idle :: s_stream_key_wait :: s_shift_bytes :: s_shift_words ::
-    s_req_data :: s_proc_resp :: s_finish :: Nil) = Enum(Bits(), 7)
+  val (s_idle :: s_stream_key_wait :: s_shift_bytes ::
+    s_req_data :: s_proc_resp :: s_finish :: Nil) = Enum(Bits(), 6)
   val state = Reg(init = s_idle)
-  val outputMask = Reg(Bits(width = 3))
-  val shiftByWord = Reg(Bool())
+  val outputMask = Reg(Bits(width = 2))
 
   val len = Reg(UInt(width = ValAddrSize))
   val bytesread = Reg(UInt(width = ValAddrSize))
@@ -45,8 +37,6 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
 
   val word = Reg(Bits(width = coreDataBits))
   val byteOff = bytesread(InputByteShift - 1, 0)
-  val wordsread = bytesread(ValAddrSize - 1, OutputByteShift)
-  val wordlen = len(ValAddrSize - 1, OutputByteShift)
 
   io.mem.req.valid := (state === s_req_data)
   io.mem.req.bits.addr := readaddr
@@ -55,18 +45,14 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
   io.mem.req.bits.cmd := M_XRD
   io.mem.req.bits.phys := Bool(true)
 
-  val shifting = (state === s_shift_bytes) || (state === s_shift_words)
+  val shifting = (state === s_shift_bytes)
 
   io.keyData.valid := shifting && outputMask(0).toBool
   io.keyData.bits  := word(7, 0)
 
-  io.allKeyAddr := writeaddr(KeyAddrSize + OutputByteShift - 1, OutputByteShift)
-  io.allKeyData := word(WordSize - 1, 0)
-  io.allKeyWrite := shifting && outputMask(1).toBool
-
   io.cacheWriteData := word(7, 0)
   io.cacheWriteAddr := writeaddr
-  io.cacheWriteEn := shifting && outputMask(2).toBool
+  io.cacheWriteEn := shifting && outputMask(1).toBool
 
   io.cmd.ready := (state === s_idle)
 
@@ -81,18 +67,11 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
         switch (io.cmd.bits.action) {
           is (StreamKeyAction) {
             state := s_stream_key_wait
-            shiftByWord := Bool(false)
-            outputMask := Bits("b001")
-          }
-          is (CopyKeyAction) {
-            state := s_req_data
-            shiftByWord := Bool(true)
-            outputMask := Bits("b010")
+            outputMask := Bits("b01")
           }
           is (CopyValueAction) {
             state := s_req_data
-            shiftByWord := Bool(false)
-            outputMask := Bits("b100")
+            outputMask := Bits("b10")
           }
         }
       }
@@ -112,26 +91,6 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
         state := s_req_data
       }
     }
-    is (s_shift_words) {
-      bytesread := bytesread + UInt(BytesPerOutputWord)
-      if (WordSize == coreDataBits) {
-        when (wordsread === wordlen - UInt(1)) {
-          state := s_finish
-        } .otherwise {
-          state := s_req_data
-          writeaddr := writeaddr + UInt(BytesPerOutputWord)
-        }
-      } else {
-        word := Cat(UInt(0, WordSize), word(coreDataBits - 1, WordSize))
-        val wordOff = bytesread(InputByteShift - 1, OutputByteShift)
-        when (wordsread === wordlen - UInt(1)) {
-          state := s_finish
-        } .elsewhen (wordOff === UInt(OutputWordsPerInputWord - 1)) {
-          state := s_req_data
-          writeaddr := writeaddr + UInt(BytesPerOutputWord)
-        }
-      }
-    }
     is (s_req_data) {
       when (io.mem.req.ready) {
         readaddr := readaddr + UInt(BytesPerInputWord)
@@ -141,11 +100,7 @@ class MemoryHandler(val WordSize: Int, ValAddrSize: Int, KeyAddrSize: Int)
     is (s_proc_resp) {
       when (io.mem.resp.valid) {
         word := io.mem.resp.bits.data
-        when (shiftByWord) {
-          state := s_shift_words
-        } .otherwise {
-          state := s_shift_bytes
-        }
+        state := s_shift_bytes
       }
     }
     is (s_finish) {
@@ -166,10 +121,9 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
 
   val key = "asdkfjqwekjfasdkfj"
-  val keyInWords = messToWords(key, 8)
-  val keyOutWords = messToWords(key, c.WordSize / 8)
+  val keyWords = messToWords(key, 8)
 
-  memory.store_data(0, keyInWords)
+  memory.store_data(0, keyWords)
 
   wire_poke(c.io.cmd.valid, 1)
   wire_poke(c.io.cmd.bits.action, 0)
@@ -184,7 +138,6 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
 
   until (peek(c.io.cmd.ready) == 1, 450) {
     expect(c.io.cacheWriteEn, 0)
-    expect(c.io.allKeyWrite, 0)
     if (peek(c.io.keyData.valid) == 1) {
       isTrace = true
       expect(c.io.keyData.bits, key(addr))
@@ -201,28 +154,8 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
   takestep()
   wire_poke(c.io.cmd.valid, 0)
 
-  memory.store_data(0, keyInWords)
-
   until (peek(c.io.cmd.ready) == 1, 450) {
     expect(c.io.keyData.valid, 0)
-    expect(c.io.cacheWriteEn, 0)
-    if (peek(c.io.allKeyWrite) == 1) {
-      isTrace = true
-      addr = peek(c.io.allKeyAddr).toInt
-      expect(c.io.allKeyData, keyOutWords(addr))
-      isTrace = false
-    }
-    memory.process()
-  }
-
-  wire_poke(c.io.cmd.valid, 1)
-  wire_poke(c.io.cmd.bits.action, 2)
-  takestep()
-  wire_poke(c.io.cmd.valid, 0)
-
-  until (peek(c.io.cmd.ready) == 1, 450) {
-    expect(c.io.keyData.valid, 0)
-    expect(c.io.allKeyWrite, 0)
     if (peek(c.io.cacheWriteEn) == 1) {
       isTrace = true
       addr = peek(c.io.cacheWriteAddr).toInt
@@ -235,7 +168,7 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
 
 object MemoryHandlerMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new MemoryHandler(64, 16, 5))) {
+    chiselMainTest(args, () => Module(new MemoryHandler(6, 5))) {
       c => new MemoryHandlerTest(c)
     }
   }

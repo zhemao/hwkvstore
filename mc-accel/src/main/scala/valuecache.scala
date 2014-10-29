@@ -16,9 +16,10 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     val cacheWriteData = UInt(INPUT, 8)
     val cacheWriteEn = Bool(INPUT)
 
-    val addrLenWriteAddr = UInt(INPUT, HashSize)
+    val addrLenAddr = UInt(INPUT, HashSize)
     val addrLenWriteData = new AddrLenPair(AddrSize, INPUT)
-    val addrLenWriteEn = Bool(INPUT)
+    val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
+    val addrLenReadData = new AddrLenPair(AddrSize, OUTPUT)
   }
 
   val cacheMem = Mem(UInt(width = 8), CacheSize)
@@ -29,12 +30,21 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     cacheMem(io.cacheWriteAddr) := io.cacheWriteData
   }
 
-  val addrLenMem = Mem(new AddrLenPair(AddrSize), NumKeys)
+  val addrTable = Mem(UInt(width = AddrSize), NumKeys)
+  val lenTable  = Mem(UInt(width = AddrSize), NumKeys)
   val addrLenAddr = Reg(UInt(width = HashSize))
-  val addrLenData = addrLenMem(addrLenAddr)
+  val addrLenData = new AddrLenPair(AddrSize)
+  addrLenData.addr := addrTable(addrLenAddr)
+  addrLenData.len  := lenTable(addrLenAddr)
 
-  when (io.addrLenWriteEn) {
-    addrLenMem(io.addrLenWriteAddr) := io.addrLenWriteData
+  io.addrLenReadData.addr := addrTable(io.addrLenAddr)
+  io.addrLenReadData.len  := lenTable(io.addrLenAddr)
+
+  when (io.addrLenWriteEn(0)) {
+    addrTable(io.addrLenAddr) := io.addrLenWriteData.addr
+  }
+  when (io.addrLenWriteEn(1)) {
+    lenTable(io.addrLenAddr)  := io.addrLenWriteData.len
   }
 
   val tag = Reg(UInt(width = TagSize))
