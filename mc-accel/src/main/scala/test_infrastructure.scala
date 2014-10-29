@@ -349,20 +349,20 @@ case class TestInst(funct: BigInt, rd: BigInt,  rs1: BigInt,  rs2: BigInt,
                                    xd: Boolean, xs1: Boolean, xs2: Boolean,
                     opcode: BigInt=Instructions.CUSTOM0.litValue().toInt) {
   def inject(db: AdvTester[_], target: RoCCInstruction): Unit = {
-    db.wire_poke(target.funct, funct)
-    db.wire_poke(target.rd, rd)
-    db.wire_poke(target.xd, if(xd) 1 else 0)
-    db.wire_poke(target.rs1, rs1)
-    db.wire_poke(target.xs1, if(xs1) 1 else 0)
-    db.wire_poke(target.rs2, rs2)
-    db.wire_poke(target.xs2, if(xs2) 1 else 0)
-    db.wire_poke(target.opcode, opcode)
+    db.reg_poke(target.funct, funct)
+    db.reg_poke(target.rd, rd)
+    db.reg_poke(target.xd, if(xd) 1 else 0)
+    db.reg_poke(target.rs1, rs1)
+    db.reg_poke(target.xs1, if(xs1) 1 else 0)
+    db.reg_poke(target.rs2, rs2)
+    db.reg_poke(target.xs2, if(xs2) 1 else 0)
+    db.reg_poke(target.opcode, opcode)
   }
 }
 case class TestCmd(inst: TestInst, rs1: BigInt=0, rs2: BigInt=0) {
 def inject(db: AdvTester[_], target: RoCCCommand): Unit = {
-    db.wire_poke(target.rs1, rs1)
-    db.wire_poke(target.rs2, rs2)
+    db.reg_poke(target.rs1, rs1)
+    db.reg_poke(target.rs2, rs2)
     inst.inject(db, target.inst)
   }
 }
