@@ -108,6 +108,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
 
         switch (io.rocc.cmd.bits.inst.funct) {
           is (SwitchModeInst) {
+            findAvailable := Bool(false)
             wantmode := io.rocc.cmd.bits.inst.rs1(0).toBool
             state := s_switch
           }
