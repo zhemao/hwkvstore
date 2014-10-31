@@ -58,19 +58,17 @@ class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     }
     is (s_read) {
       keyWrite := Bool(false)
-      when (index === keyLen) {
-        when (byteOff != UInt(0)) {
-          keyWrite := Bool(true)
-          keyWriteAddr := index(KeyLenSize - 1, ByteShift)
-        }
-        state := s_finish
-      } .elsewhen (io.keyData.valid) {
+      when (io.keyData.valid) {
         when (byteOff === UInt(0)) {
           keyWriteData := io.keyData.bits
         } .otherwise {
           keyWriteData := keyWriteData | io.keyData.bits << inputShift
         }
-        when (byteOff === UInt(WordBytes - 1)) {
+        when (index === keyLen - UInt(1)) {
+          keyWrite := Bool(true)
+          keyWriteAddr := index(KeyLenSize - 1, ByteShift)
+          state := s_finish
+        } .elsewhen (byteOff === UInt(WordBytes - 1)) {
           keyWrite := Bool(true)
           keyWriteAddr := index(KeyLenSize - 1, ByteShift)
         }
@@ -156,6 +154,7 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
   step(1)
 
   poke(c.io.keyData.valid, 1)
+  poke(c.io.hashOut.ready, 1)
 
   for (byte <- key) {
     expect(c.io.keyData.ready, 1)
@@ -166,8 +165,6 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
   val hash1 = computeHash(pearsonRomValues1, key, HashBytes) % (1 << c.HashSize)
   val hash2 = computeHash(pearsonRomValues2, key, HashBytes) % (1 << c.HashSize)
 
-  poke(c.io.hashOut.ready, 1)
-  step(1)
   expect(c.io.hashOut.valid, 1)
   expect(c.io.hashOut.bits.hash1, hash1)
   expect(c.io.hashOut.bits.hash2, hash2)
