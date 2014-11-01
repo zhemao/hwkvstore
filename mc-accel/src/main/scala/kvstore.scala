@@ -5,9 +5,13 @@ import Chisel.AdvTester._
 import McAccel.TestUtils._
 import McAccel.Constants._
 
-class KeyValueStore (
-    WordSize: Int, KeySize: Int, val NumKeys: Int,
-    val ValCacheSize: Int, TagSize: Int) extends Module {
+class KeyValueStore extends Module {
+  val WordSize = params[Int]("wordsize")
+  val KeySize = params[Int]("keysize")
+  val NumKeys = params[Int]("numkeys")
+  val ValCacheSize = params[Int]("valcachesize")
+  val TagSize = params[Int]("tagsize")
+
   val WordBytes = WordSize / 8
   val CurKeyWords = KeySize / WordBytes
   val AllKeyWords = CurKeyWords * NumKeys
@@ -179,9 +183,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
 
 object KeyValueStoreMain {
   def main(args: Array[String]) {
-    chiselMainTest(args,
-      () => Module(new KeyValueStore(32, 256, 16, 1024, 4))) {
-        c => new KeyValueStoreTest(c)
-    }
+    chiselMain.run(args, () => (new KeyValueStore),
+      (c: KeyValueStore) => new KeyValueStoreTest(c))
   }
 }

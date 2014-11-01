@@ -1,4 +1,9 @@
-TEST_FLAGS = --compile --genHarness --test --vcd --debug --targetDir build/emulator/generated-src
+PROJ := McAccel
+CONFIG ?= DefaultConfig
+
+TEST_FLAGS = --compile --genHarness --test --vcd --debug \
+	--targetDir build/emulator/generated-src \
+	--configInstance $(PROJ).$(CONFIG)
 
 perftest:
 	sbt "run-main McAccel.PerfTestMain $(TEST_FLAGS)"

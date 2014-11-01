@@ -225,10 +225,7 @@ object PerfTestMain {
     val requestArray = new Array[String](keyRequests.size)
     keyRequests.copyToArray(requestArray)
 
-    chiselMainTest(args, () => Module(
-      new KeyValueStore(
-        WordSize, KeySize, NumKeys, ValCacheSize, TagSize))) {
-      c => new PerfTest(c, keyValuePairs, requestArray)
-    }
+    chiselMain.run(args, () => (new KeyValueStore),
+      (c: KeyValueStore) => new PerfTest(c, keyValuePairs, requestArray))
   }
 }
