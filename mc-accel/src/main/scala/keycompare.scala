@@ -67,6 +67,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     is (s_delay_len) {
       lenAddr := curHash
       state := s_check_len
+      index := UInt(0)
     }
     is (s_check_len) {
       when (io.findAvailable && io.lenData === UInt(0)) {
@@ -74,7 +75,6 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         state := s_handoff
       } .elsewhen (io.lenData === curInfo.len) {
         state := s_check_data
-        index := UInt(0)
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
         state := s_delay_len
@@ -87,7 +87,6 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         when (checkFirst) {
           checkFirst := Bool(false)
           state := s_delay_len
-          index := UInt(0)
         } .otherwise {
           state := s_handoff
         }
