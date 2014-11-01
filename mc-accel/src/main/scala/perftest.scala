@@ -97,6 +97,12 @@ class PerfTest(
   val ResultData_OHandler = new DecoupledSink(c.io.resultData,
     (sckt: UInt) => peek(sckt).charValue)
 
+  val totalKeySize = requests.map(_.length).sum
+  val totalValSize = requests.map(kvPairs(_).length).sum
+
+  println(s"Cumulative size of keys: ${totalKeySize}")
+  println(s"Cumulative size of values: ${totalValSize}")
+
   val kvChecker = new KeyValueChecker(
     KeyInfo_IHandler.inputs, KeyData_IHandler.inputs,
     ResultInfo_OHandler.outputs, ResultData_OHandler.outputs,
@@ -167,11 +173,14 @@ class PerfTest(
 
   switchMode(false)
 
+  val start_cycles = cycles
   println("Feeding data")
   kvChecker.start()
   until (kvChecker.finished, 5000 * requests.length) {
     kvChecker.process()
   }
+  val run_cycles = cycles - start_cycles
+  println(s"Processed ${requests.length} requests in ${run_cycles} cycles")
 }
 
 object PerfTestMain {
