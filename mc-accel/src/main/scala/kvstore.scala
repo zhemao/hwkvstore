@@ -7,7 +7,7 @@ import McAccel.Constants._
 
 class KeyValueStore (
     WordSize: Int, KeySize: Int, val NumKeys: Int,
-    ValCacheSize: Int, TagSize: Int) extends Module {
+    val ValCacheSize: Int, TagSize: Int) extends Module {
   val WordBytes = WordSize / 8
   val CurKeyWords = KeySize / WordBytes
   val AllKeyWords = CurKeyWords * NumKeys
