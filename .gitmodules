@@ -1,0 +1,3 @@
+[submodule "mc-accel/ucbsc"]
+	path = mc-accel/ucbsc
+	url = git@github.com:ucb-bar/ucbsc.git
