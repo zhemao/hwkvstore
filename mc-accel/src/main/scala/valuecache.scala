@@ -22,16 +22,20 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     val addrLenReadData = new AddrLenPair(AddrSize, OUTPUT)
   }
 
-  val cacheMem = Mem(UInt(width = 8), CacheSize)
+  val cacheMem = Mem(UInt(width = 8), CacheSize, true)
   val cacheAddr = Reg(UInt(width = AddrSize))
   val cacheData = cacheMem(cacheAddr)
 
-  when (io.cacheWriteEn) {
-    cacheMem(io.cacheWriteAddr) := io.cacheWriteData
+  val cacheWriteEn = Reg(next = io.cacheWriteEn)
+  val cacheWriteAddr = Reg(next = io.cacheWriteAddr)
+  val cacheWriteData = Reg(next = io.cacheWriteData)
+
+  when (cacheWriteEn) {
+    cacheMem(cacheWriteAddr) := cacheWriteData
   }
 
-  val addrTable = Mem(UInt(width = AddrSize), NumKeys)
-  val lenTable  = Mem(UInt(width = AddrSize), NumKeys)
+  val addrTable = Mem(UInt(width = AddrSize), NumKeys, true)
+  val lenTable  = Mem(UInt(width = AddrSize), NumKeys, true)
   val addrLenAddr = Reg(UInt(width = HashSize))
   val addrLenData = new AddrLenPair(AddrSize)
   addrLenData.addr := addrTable(addrLenAddr)

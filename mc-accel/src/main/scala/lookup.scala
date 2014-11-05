@@ -72,9 +72,9 @@ class LookupPipeline(
   val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
   keycopy.io.copyReq <> io.copyReq
 
-  val curKeyMem = Mem(UInt(width = WordSize), 2 * CurKeyWords)
-  val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
-  val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
+  val curKeyMem = Mem(UInt(width = WordSize), 2 * CurKeyWords, true)
+  val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords, true)
+  val lenMem = Mem(UInt(width = KeyLenSize), NumKeys, true)
 
   val swapped = Reg(init = Bool(false))
   val curReadAddrRaw = Mux(keycopy.io.selCopy,
@@ -94,8 +94,12 @@ class LookupPipeline(
     curKeyMem(curWriteAddr) := curWriteData
   }
 
-  when (keycopy.io.allKeyWrite) {
-    allKeyMem(keycopy.io.allKeyAddr) := keycopy.io.allKeyData
+  val allWriteAddr = Reg(next = keycopy.io.allKeyAddr)
+  val allWriteEn = Reg(next = keycopy.io.allKeyWrite)
+  val allWriteData = Reg(next = keycopy.io.allKeyData)
+
+  when (allWriteEn) {
+    allKeyMem(allWriteAddr) := allWriteData
   }
 
   when (io.keyLenWrite) {
@@ -308,7 +312,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 object LookupPipelineMain {
   def main(args: Array[String]) {
     chiselMainTest(args,
-      () => Module(new LookupPipeline(32, 256, 16, 256, 4))) {
+      () => Module(new LookupPipeline(32, 256, 32, 1024, 4))) {
       c => new LookupPipelineTest(c)
     }
   }
