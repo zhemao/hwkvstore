@@ -1,0 +1,237 @@
+#--------------------------------------------------------------------
+# Sources
+#--------------------------------------------------------------------
+
+# Specify what the toplevel verilog module is
+
+icc_toplevel = $(TOP)
+icc_testharness = test
+icc_toplevelinst = KeyValueStore.$(CONFIG)
+
+#--------------------------------------------------------------------
+# Build rules
+#--------------------------------------------------------------------
+
+icc_dir = $(build_dir)/icc-par
+
+icc_exec = icc_shell -64bit
+icc_build_suffix = $(shell date +%Y-%m-%d_%H-%M)
+iccdp_build_dir = $(icc_dir)/build-iccdp-$(icc_build_suffix)
+icc_build_dir = $(icc_dir)/build-icc-$(icc_build_suffix)
+iccdp_cir_build_dir = $(icc_dir)/current-iccdp
+icc_cur_build_dir = $(icc_dir)/current-icc
+icc_reports_dir = reports
+icc_results_dir = results
+icc_log_dir = log
+
+iccdp_timestamp = $(iccdp_cir_build_dir)/timestamp
+prelude_icc = $(iccdp_cir_build_dir)/prelude_icc
+init_design_icc = $(iccdp_cir_build_dir)/init_design_icc
+
+icc_timestamp = $(icc_cur_build_dir)/timestamp
+icc_v = $(icc_cur_build_dir)/$(icc_results_dir)/$(icc_toplevel).output.v
+icc_sdf = $(icc_cur_build_dir)/$(icc_results_dir)/$(icc_toplevel).output.sdf
+icc_sdc = $(icc_cur_build_dir)/$(icc_results_dir)/$(icc_toplevel).output.sdc
+icc_sbpf_min = $(icc_cur_build_dir)/$(icc_results_dir)/$(icc_toplevel).output.sbpf.min
+icc_sbpf_max = $(icc_cur_build_dir)/$(icc_results_dir)/$(icc_toplevel).output.sbpf.max
+icc_access_tab = $(icc_cur_build_dir)/access.tab
+icc_force_regs = $(icc_cur_build_dir)/force_regs.ucli
+
+place_opt_icc = $(icc_cur_build_dir)/place_opt_icc
+clock_opt_cts_icc = $(icc_cur_build_dir)/clock_opt_cts_icc
+clock_opt_psyn_icc = $(icc_cur_build_dir)/clock_opt_psyn_icc
+clock_opt_route_icc = $(icc_cur_build_dir)/clock_opt_route_icc
+route_icc = $(icc_cur_build_dir)/route_icc
+route_opt_icc = $(icc_cur_build_dir)/route_opt_icc
+chip_finish_icc = $(icc_cur_build_dir)/chip_finish_icc
+outputs_icc = $(icc_cur_build_dir)/outputs_icc
+icc = $(icc_cur_build_dir)/icc
+
+icc_setup_dir = $(icc_dir)/setup
+icc_floorplan_dir = $(icc_dir)/floorplan
+icc_scripts_dir = $(icc_dir)/icc_scripts
+
+icc_vars_tcl = $(icc_setup_dir)/common_setup.tcl $(icc_setup_dir)/icc_setup.tcl $(icc_scripts_dir)/check_icc_rm_values.tcl
+icc_makegen_tcl = make_generated_vars.tcl
+icc_floorplan_tcl = $(icc_floorplan_dir)/floorplan.tcl $(icc_floorplan_dir)/saed_32nm.tpl
+
+prelude_icc_tcl = $(icc_scripts_dir)/prelude_icc.tcl
+init_design_icc_tcl = $(icc_scripts_dir)/init_design_icc.tcl
+init_design_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl
+
+place_opt_icc_tcl = $(icc_scripts_dir)/place_opt_icc.tcl
+place_opt_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_cts_settings_icc.tcl
+clock_opt_cts_icc_tcl = $(icc_scripts_dir)/clock_opt_cts_icc.tcl
+clock_opt_cts_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_cts_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl
+clock_opt_psyn_icc_tcl = $(icc_scripts_dir)/clock_opt_psyn_icc.tcl
+clock_opt_psyn_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_cts_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl
+clock_opt_route_icc_tcl = $(icc_scripts_dir)/clock_opt_route_icc.tcl
+clock_opt_route_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_cts_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl $(icc_scripts_dir)/common_route_si_settings_zrt_icc.tcl
+route_icc_tcl = $(icc_scripts_dir)/route_icc.tcl
+route_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl $(icc_scripts_dir)/common_route_si_settings_zrt_icc.tcl
+route_opt_icc_tcl = $(icc_scripts_dir)/route_opt_icc.tcl
+route_opt_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl $(icc_scripts_dir)/common_route_si_settings_zrt_icc.tcl
+chip_finish_icc_tcl = $(icc_scripts_dir)/chip_finish_icc.tcl
+chip_finish_misc_tcl = $(icc_scripts_dir)/common_optimization_settings_icc.tcl $(icc_scripts_dir)/common_placement_settings_icc.tcl $(icc_scripts_dir)/common_post_cts_timing_settings.tcl $(icc_scripts_dir)/common_route_si_settings_zrt_icc.tcl
+outputs_icc_tcl = $(icc_scripts_dir)/outputs_icc.tcl
+outputs_misc_tcl = $(icc_scripts_dir)/find_regs.tcl
+
+icc_common_vars = \
+	set DESIGN_NAME                 "$(icc_toplevel)";\n \
+	set STRIP_PATH                  "$(icc_testharness)/$(icc_toplevelinst)";\n \
+	set ADDITIONAL_SEARCH_PATH      "$(cells_db_dir) $(srams_dir) $(dc_cur_build_dir)/$(dc_results_dir)";\n \
+	set TARGET_LIBRARY_FILES        "$(cells_db) $(srams_db)";\n \
+	set MW_REFERENCE_LIB_DIRS       "$(cells_mw) $(srams_mw)";\n \
+	set MIN_LIBRARY_FILES           "$(min_library)";\n \
+	set TECH_FILE                   "$(techfile_dir)/techfile.tf";\n \
+	set MAP_FILE                    "$(techfile_dir)/tech2itf.map";\n \
+	set TLUPLUS_MAX_FILE            "$(tluplus_dir)/max.tluplus";\n \
+	set TLUPLUS_MIN_FILE            "$(tluplus_dir)/min.tluplus";\n \
+	set REPORTS_DIR                 "$(icc_reports_dir)";\n \
+	set RESULTS_DIR                 "$(icc_results_dir)";\n \
+	set FILLER_CELL                 "$(filler_cells)";\n \
+	set REPORTING_EFFORT            "OFF";\n \
+	set PNR_EFFORT                  "high";\n \
+
+iccdp_vars = \
+	set ICC_FLOORPLAN_CEL            "init_design_icc";\n \
+
+icc_vars = \
+	set ICC_FLOORPLAN_CEL            "init_design_icc";\n \
+
+$(iccdp_timestamp): $(dc_ddc) $(srams_db) $(srams_mw) $(icc_vars_tcl) $(icc_floorplan_tcl) $(prelude_icc_tcl) $(init_design_icc_tcl) $(init_design_misc_tcl)
+	cd $(icc_dir); \
+	mkdir $(iccdp_build_dir); \
+	rm -f $(iccdp_cir_build_dir); \
+	ln -s $(notdir $(iccdp_build_dir)) $(iccdp_cir_build_dir); \
+	cp ../Makefrag $(iccdp_cir_build_dir); \
+	cp $(dc_timestamp) $(iccdp_cir_build_dir)/timestamp-dc; \
+	date > $(iccdp_timestamp); \
+
+$(prelude_icc): $(iccdp_timestamp)
+	cp $(prelude_icc_tcl) $(icc_vars_tcl) $(iccdp_cir_build_dir)
+	echo -e '$(icc_common_vars)' > $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(iccdp_vars)' >> $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	cd $(iccdp_cir_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(prelude_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(prelude_icc)).log; \
+	date > $(notdir $(prelude_icc))
+
+$(init_design_icc): $(iccdp_timestamp) $(prelude_icc)
+	cp $(init_design_icc_tcl) $(init_design_misc_tcl) $(icc_vars_tcl) $(icc_floorplan_tcl) $(iccdp_cir_build_dir)
+	echo -e '$(icc_common_vars)' > $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(iccdp_vars)' >> $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	cd $(iccdp_cir_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(init_design_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(init_design_icc)).log; \
+	date > $(notdir $(init_design_icc))
+
+$(flat_dp): $(iccdp_timestamp) $(init_design_icc)
+	cp $(flat_dp_tcl) $(flat_dp_misc_tcl) $(icc_vars_tcl) $(iccdp_cir_build_dir)
+	echo -e '$(icc_common_vars)' > $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(iccdp_vars)' >> $(iccdp_cir_build_dir)/$(icc_makegen_tcl)
+	cd $(iccdp_cir_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(flat_dp_tcl)) | tee -i $(icc_log_dir)/$(notdir $(flat_dp)).log; \
+	date > $(notdir $(flat_dp))
+
+$(icc_timestamp): $(iccdp_timestamp) $(icc_vars_tcl) $(place_opt_icc_tcl) $(place_opt_misc_tcl) $(clock_opt_cts_icc_tcl) $(clock_opt_cts_misc_tcl) $(clock_opt_psyn_icc_tcl) $(clock_opt_psyn_misc_tcl) $(clock_opt_route_icc_tcl) $(clock_opt_route_misc_tcl) $(route_icc_tcl) $(route_misc_tcl) $(route_opt_icc_tcl) $(route_opt_misc_tcl) $(chip_finish_icc_tcl) $(chip_finish_misc_tcl) $(outputs_icc_tcl) $(outputs_misc_tcl)
+	cd $(icc_dir); \
+	mkdir $(icc_build_dir); \
+	rm -f $(icc_cur_build_dir); \
+	ln -s $(notdir $(icc_build_dir)) $(icc_cur_build_dir); \
+	cp $(dc_timestamp) $(icc_cur_build_dir)/timestamp-dc; \
+	cp $(iccdp_timestamp) $(icc_cur_build_dir)/timestamp-iccdp; \
+	cp ../Makefrag $(icc_cur_build_dir); \
+	cp -R $(iccdp_cir_build_dir)/$(icc_toplevel)_LIB $(icc_cur_build_dir); \
+	date > $(icc_timestamp); \
+
+$(place_opt_icc): $(icc_timestamp)
+	cp $(place_opt_icc_tcl) $(place_opt_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(place_opt_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(place_opt_icc)).log; \
+	date > $(notdir $(place_opt_icc))
+
+$(clock_opt_cts_icc): $(icc_timestamp) $(place_opt_icc)
+	cp $(clock_opt_cts_icc_tcl) $(clock_opt_cts_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(clock_opt_cts_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(clock_opt_cts_icc)).log; \
+	date > $(notdir $(clock_opt_cts_icc))
+
+$(clock_opt_psyn_icc): $(icc_timestamp) $(clock_opt_cts_icc)
+	cp $(clock_opt_psyn_icc_tcl) $(clock_opt_psyn_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(clock_opt_psyn_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(clock_opt_psyn_icc)).log; \
+	date > $(notdir $(clock_opt_psyn_icc))
+
+$(clock_opt_route_icc): $(icc_timestamp) $(clock_opt_psyn_icc)
+	cp $(clock_opt_route_icc_tcl) $(clock_opt_route_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(clock_opt_route_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(clock_opt_route_icc)).log; \
+	date > $(notdir $(clock_opt_route_icc))
+
+$(route_icc): $(icc_timestamp) $(clock_opt_route_icc)
+	cp $(route_icc_tcl) $(route_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(route_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(route_icc)).log; \
+	date > $(notdir $(route_icc))
+
+$(route_opt_icc): $(icc_timestamp) $(route_icc)
+	cp $(route_opt_icc_tcl) $(route_opt_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(route_opt_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(route_opt_icc)).log; \
+	date > $(notdir $(route_opt_icc))
+
+$(chip_finish_icc): $(icc_timestamp) $(route_opt_icc)
+	cp $(chip_finish_icc_tcl) $(chip_finish_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(chip_finish_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(chip_finish_icc)).log; \
+	date > $(notdir $(chip_finish_icc))
+
+$(outputs_icc): $(icc_timestamp) $(chip_finish_icc)
+	cp $(outputs_icc_tcl) $(outputs_misc_tcl) $(icc_vars_tcl) $(icc_cur_build_dir)
+	echo -e '$(icc_common_vars)' > $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	echo -e '$(icc_vars)' >> $(icc_cur_build_dir)/$(icc_makegen_tcl)
+	cd $(icc_cur_build_dir); \
+	mkdir -p $(icc_reports_dir) $(icc_results_dir) $(icc_log_dir); \
+	$(icc_exec) -f $(notdir $(outputs_icc_tcl)) | tee -i $(icc_log_dir)/$(notdir $(outputs_icc)).log; \
+	date > $(notdir $(outputs_icc))
+
+$(icc_v): $(init_design_icc) $(outputs_icc)
+	cd $(icc_cur_build_dir); \
+	date > $(notdir $(icc))
+
+prelude_icc: $(prelude_icc)
+init_design_icc: $(init_design_icc)
+
+place_opt_icc: $(place_opt_icc)
+clock_opt_cts_icc: $(clock_opt_cts_icc)
+clock_opt_psyn_icc: $(clock_opt_psyn_icc)
+clock_opt_route_icc: $(clock_opt_route_icc)
+route_icc: $(route_icc)
+route_opt_icc: $(route_opt_icc)
+chip_finish_icc: $(chip_finish_icc)
+outputs_icc: $(outputs_icc)
+
+icc: $(icc_v)
