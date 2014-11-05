@@ -5,8 +5,8 @@
 # Specify what the toplevel verilog module is
 
 dc_toplevel = $(TOP)
-dc_testharness = KeyValueStore.DefaultConfig-harness
-dc_toplevelinst = KeyValueStore.DefaultConfig
+dc_testharness = KeyValueStore.$(CONFIG)-harness
+dc_toplevelinst = KeyValueStore.$(CONFIG)
 
 # Verilog sources (do not include test harness!)
 
