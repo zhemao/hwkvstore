@@ -6,14 +6,19 @@ TEST_FLAGS = --compile --genHarness --test --vcd --debug \
 	--targetDir build/emulator/generated-src \
 	--configInstance $(PROJ).$(CONFIG)
 VLSI_COMPILE_FLAGS = --compile --genHarness --debug --backend v \
-	--targetDir build/vlsi/generated-src \
-	--configInstance $(PROJ).$(CONFIG)
+	--targetDir $(VLSI_OUT_DIR) \
+	--configInstance $(PROJ).$(CONFIG) \
+	--noInlineMem
 VLSI_RUN_FLAGS = --test --debug --backend v \
 	--targetDir build/vlsi/generated-src \
 	--configInstance $(PROJ).$(CONFIG)
 
-$(vlsi-timestamp):
+SCALA_SRC = src/main/scala/*.scala
+
+$(vlsi-timestamp): $(SCALA_SRC)
 	sbt "run-main McAccel.PerfTestMain $(VLSI_COMPILE_FLAGS)"
+	$(vlsi_mem_gen) $(VLSI_OUT_DIR)/KeyValueStore.$(CONFIG).conf \
+		>> $(VLSI_OUT_DIR)/KeyValueStore.$(CONFIG).v
 	date > $(vlsi-timestamp)
 
 vlsi: $(vlsi-timestamp)
@@ -44,4 +49,6 @@ hasherwriter-test:
 
 hasherwriter-vlsi:
 	sbt "run-main McAccel.HasherWriterMain $(VLSI_COMPILE_FLAGS)"
-	sbt "run-main McAccel.HasherWriterMain $(VLSI_RUN_FLAGS)"
+
+lookup-vlsi:
+	sbt "run-main McAccel.LookupPipelineMain $(VLSI_COMPILE_FLAGS)"

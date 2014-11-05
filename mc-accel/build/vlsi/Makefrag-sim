@@ -1,0 +1,91 @@
+#--------------------------------------------------------------------
+# Run
+#--------------------------------------------------------------------
+
+asm_tests_out = $(foreach test, $(asm_p_tests), $(sim_dir)/$(test).out)
+vecasm_tests_out = $(foreach test, $(vecasm_p_tests) $(vecasm_v_tests), $(sim_dir)/$(test).out)
+vecasm_t_tests_out = $(foreach test, $(vecasm_pt_tests), $(sim_dir)/$(test).out)
+bmarks_out = $(foreach test, $(bmarks), $(sim_dir)/$(test).out)
+mt_bmarks_out = $(foreach test, $(mt_bmarks), $(sim_dir)/$(test).out)
+
+asm_tests_vpd = $(foreach test, $(asm_p_tests), $(sim_dir)/$(test).vpd)
+vecasm_tests_vpd = $(foreach test, $(vecasm_p_tests) $(vecasm_v_tests), $(sim_dir)/$(test).vpd)
+vecasm_t_tests_vpd = $(foreach test, $(vecasm_pt_tests), $(sim_dir)/$(test).vpd)
+bmarks_vpd = $(foreach test, $(bmarks), $(sim_dir)/$(test).vpd)
+mt_bmarks_vpd = $(foreach test, $(mt_bmarks), $(sim_dir)/$(test).vpd)
+
+asm_tests_saif = $(foreach test, $(asm_p_tests), $(sim_dir)/$(test).saif)
+vecasm_tests_saif = $(foreach test, $(vecasm_p_tests) $(vecasm_v_tests), $(sim_dir)/$(test).saif)
+vecasm_t_tests_saif = $(foreach test, $(vecasm_pt_tests), $(sim_dir)/$(test).saif)
+bmarks_saif = $(foreach test, $(bmarks), $(sim_dir)/$(test).saif)
+mt_bmarks_saif = $(foreach test, $(mt_bmarks), $(sim_dir)/$(test).saif)
+
+$(asm_tests_out): $(sim_dir)/%.out: $(tstdir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +verbose +max-cycles=10000000 +coremap-random +loadmem=$<.hex > $@ 2>&1
+
+$(bmarks_out): $(sim_dir)/%.out: $(bmarkdir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=100000000 +coremap-random +loadmem=$<.hex > $@ 2>&1
+
+$(mt_bmarks_out): $(sim_dir)/%.out: $(mt_bmarkdir)/% $(simv)
+	cd $(sim_dir) && $(exec_simv) +dramsim +verbose +max-cycles=100000000 +coremap-random +loadmem=$<.hex > $@ 2>&1
+
+$(asm_tests_vpd) $(vecasm_tests_vpd) $(vecasm_t_tests_vpd): $(sim_dir)/%.vpd: $(tstdir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +verbose +vcdplusfile=$@ +max-cycles=10000000 +coremap-random +loadmem=$<.hex > $(patsubst %.vpd,%.out,$@) 2>&1
+
+$(bmarks_vpd): $(sim_dir)/%.vpd: $(bmarkdir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +vcdplusfile=$@ +max-cycles=100000000 +coremap-random +loadmem=$<.hex > $(patsubst %.vpd,%.out,$@) 2>&1
+
+$(mt_bmarks_vpd): $(sim_dir)/%.vpd: $(mt_bmarkdir)/% $(simv_debug)
+	cd $(sim_dir) && $(exec_simv_debug) +dramsim +verbose +vcdplusfile=$@ +max-cycles=100000000 +coremap-random +loadmem=$<.hex > $(patsubst %.vpd,%.out,$@) 2>&1
+
+$(asm_tests_saif) $(vecasm_tests_saif) $(vecasm_t_tests_saif): $(sim_dir)/%.saif: $(tstdir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $*.vcd && vcd2saif -input $*.vcd -pipe "$(exec_simv_debug) +verbose +vcdfile=$*.vcd +max-cycles=10000000 +coremap-random +loadmem=$<.hex" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+
+$(bmarks_saif): $(sim_dir)/%.saif: $(bmarkdir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $*.vcd && vcd2saif -input $*.vcd -pipe "$(exec_simv_debug) +verbose +vcdfile=$*.vcd +max-cycles=100000000 +coremap-random +loadmem=$<.hex" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+
+$(mt_bmarks_saif): $(sim_dir)/%.saif: $(mt_bmarkdir)/% $(simv_debug)
+	cd $(sim_dir) && rm -f $*.vcd && vcd2saif -input $*.vcd -pipe "$(exec_simv_debug) +verbose +vcdfile=$*.vcd +max-cycles=100000000 +coremap-random +loadmem=$<.hex" -output $@ > $(patsubst %.saif,%.out,$@) 2>&1
+
+run-asm-tests: $(asm_tests_out)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(asm_tests_out); echo;
+
+run-vecasm-tests: $(vecasm_tests_out)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(vecasm_tests_out); echo;
+
+run-vecasm-timer-tests: $(vecasm_t_tests_out)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(vecasm_t_tests_out); echo;
+
+run-bmarks-test: $(bmarks_out)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(bmarks_out); echo;
+
+run-mt-tests: $(mt_bmarks_out)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(mt_bmarks_out); echo;
+
+run-asm-tests-debug: $(asm_tests_vpd)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+          $(asm_tests_out); echo;
+
+run-vecasm-tests-debug: $(vecasm_tests_vpd)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+          $(vecasm_tests_out); echo;
+
+run-vecasm-timer-tests-debug: $(vecasm_t_tests_vpd)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+          $(vecasm_t_tests_out); echo;
+
+run-bmarks-test-debug: $(bmarks_vpd)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(bmarks_out); echo;
+
+run-mt-tests-debug: $(mt_bmarks_vpd)
+	@echo; perl -ne 'print "  [$$1] $$ARGV \t$$2\n" if /\*{3}(.{8})\*{3}(.*)/' \
+	       $(mt_bmarks_out); echo;
+
+run: run-asm-tests run-bmarks-test
+run-debug: run-asm-tests-debug run-bmarks-test-debug

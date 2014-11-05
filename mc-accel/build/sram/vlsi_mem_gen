@@ -1,0 +1,226 @@
+#!/usr/bin/env python
+import sys
+import math
+
+use_latches = 0
+
+def parse_line(line):
+  name = ''
+  width = 0
+  depth = 0
+  ports = ''
+  mask_gran = 1
+  tokens = line.split()
+  i = 0
+  for i in xrange(0,len(tokens),2):
+    s = tokens[i]
+    if s == 'name':
+      name = tokens[i+1]
+    elif s == 'width':
+      width = int(tokens[i+1])
+    elif s == 'depth':
+      depth = int(tokens[i+1])
+    elif s == 'ports':
+      ports = tokens[i+1].split(',')
+    elif s == 'mask_gran':
+      # currently used only for fpga, but here for .conf format compatability
+      mask_gran = int(tokens[i+1])
+    else:
+      sys.exit('%s: unknown argument %s' % (sys.argv[0], a))
+  return (name, width, depth, ports)
+
+def gen_sram(name, width, bm, quantized_width, quantized_columns, readports, writeports, rwports, maskedports):
+  dummies = []
+  connections = []
+
+  if len(rwports) > 0:
+    iport = "RW0I"
+    mport = "RW0M"
+    oport = "RW0O"
+  else:
+    iport = "W0I"
+    mport = "W0M"
+    oport = "R1O"
+
+  i = ""
+  o = ""
+  m = ""
+  dummy_width = width/quantized_columns - quantized_width
+  for q in range(quantized_columns):
+    i_dummy = ""
+    o_dummy = ""
+    if dummy_width:
+      dummy_id = len(dummies)
+      dummy_name = "dummy%d" % dummy_id
+      dummies += [(dummy_name, dummy_width)]
+      i_dummy = "%d'd0," % dummy_width
+      o_dummy = "%s," % dummy_name
+    i = "%s%s[%d:%d]%s%s" % (i_dummy, iport, (q+1)*quantized_width-1, q*quantized_width, i != "" and "," or "", i)
+    o = "%s%s[%d:%d]%s%s" % (o_dummy, oport, (q+1)*quantized_width-1, q*quantized_width, o != "" and "," or "", o)
+    m = "{%d{%s[%d]}}%s%s" % ((quantized_width-1)/8+1, mport, q*quantized_width, m != "" and "," or "", m)
+
+  if len(rwports) > 0:
+    # generate 6t sram
+    connections += [("CE1", "CLK")]
+    connections += [("CSB1", "~RW0E")]
+    connections += [("WEB1", "~RW0W")]
+    connections += [("OEB1", "1'b0")]
+    connections += [("A1", "RW0A")]
+    connections += [("I1", "{%s}" % i)]
+    connections += [("O1", "{%s}" % o)]
+    if len(maskedports):
+      connections += [("WBM1", "{%s}" % m)]
+  else:
+    # generate 8t sram
+    connections += [("CE1", "CLK")] # read port
+    connections += [("CSB1", "~R1E")]
+    connections += [("OEB1", "1'b0")]
+    connections += [("A1", "R1A")]
+    connections += [("O1", "{%s}" % o)]
+    connections += [("CE2", "CLK")] # write port
+    connections += [("CSB2", "~W0E")]
+    connections += [("WEB2", "1'b0")]
+    connections += [("A2", "W0A")]
+    connections += [("I2", "{%s}" % i)]
+    if len(maskedports):
+      connections += [("WBM2", "{%s}" % m)]
+
+  wires = ""
+  ports = ""
+
+  for (dummy_name, dummy_width) in dummies:
+    wires += "  wire [%d:0] %s;\n" % (dummy_width-1, dummy_name)
+
+  for (port, connection) in connections:
+    ports += "    .%s(%s),\n" % (port, connection)
+
+  module = "\
+%s\
+\n\
+  %s sram(\n\
+%s\n\
+  );\n" % (wires, name, ports[:len(ports)-2])
+
+  return module
+
+
+def gen_mem(name, width, depth, ports):
+  addr_width = max(math.ceil(math.log(depth)/math.log(2)),1)
+  port_spec = ['input CLK', 'input RST', 'input init']
+  readports = []
+  writeports = []
+  latchports = []
+  rwports = []
+  decl = []
+  combinational = []
+  sequential = []
+  maskedports = {}
+  for pid in range(len(ports)):
+    ptype = ports[pid]
+    if ptype[0:1] == 'm':
+      ptype = ptype[1:]
+      maskedports[pid] = pid
+
+    if ptype == 'read':
+      port_spec.append('input [%d:0] R%dA' % (addr_width-1, pid))
+      port_spec.append('input R%dE' % pid)
+      port_spec.append('output [%d:0] R%dO' % (width-1, pid))
+      readports.append(pid)
+    elif ptype == 'write':
+      port_spec.append('input [%d:0] W%dA' % (addr_width-1, pid))
+      port_spec.append('input W%dE' % pid)
+      port_spec.append('input [%d:0] W%dI' % (width-1, pid))
+      if pid in maskedports:
+        port_spec.append('input [%d:0] W%dM' % (width-1, pid))
+      if not use_latches or pid in maskedports:
+        writeports.append(pid)
+      else:
+        latchports.append(pid)
+    elif ptype == 'rw':
+      port_spec.append('input [%d:0] RW%dA' % (addr_width-1, pid))
+      port_spec.append('input RW%dE' % pid)
+      port_spec.append('input RW%dW' % pid)
+      if pid in maskedports:
+        port_spec.append('input [%d:0] RW%dM' % (width-1, pid))
+      port_spec.append('input [%d:0] RW%dI' % (width-1, pid))
+      port_spec.append('output [%d:0] RW%dO' % (width-1, pid))
+      rwports.append(pid)
+    else:
+      sys.exit('%s: unknown port type %s' % (sys.argv[0], ptype))
+
+  mems = {}
+  # (depth, width, r, w, rw, bm) = (name, actual width, quantized width, #, bm)
+  mems[(2048,32,1,1,0,False)] = ("keymem32",32,32,1,False)
+  mems[(65536,32,1,1,0,False)] = ("keymem1024",32,32,1,False)
+  mems[(128,32,1,1,0,False)] = ("keymem2",32,32,1,False)
+  mems[(1024,8,1,1,0,False)] = ("valcache1k",8,8,1,False)
+  mems[(524288,8,1,1,0,False)] = ("valcache512k",8,8,1,False)
+
+  nr = len(readports)
+  nw = len(writeports)
+  nrw = len(rwports)
+  masked = len(maskedports)>0
+  tup = (depth, width, nr, nw, nrw, masked)
+
+  if tup in mems:
+    (sram_name, sram_width, quantized_width, quantized_columns, sram_bm) = mems[tup]
+    body = gen_sram(sram_name, sram_width, sram_bm, quantized_width, quantized_columns, readports, writeports, rwports, maskedports)
+  else:
+    decl.append('reg [%d:0] ram [%d:0];' % (width-1, depth-1))
+
+    for pid in readports:
+      decl.append('reg [%d:0] reg_R%dA;' % (addr_width-1, pid))
+      sequential.append('if (R%dE) reg_R%dA <= R%dA;' % (pid, pid, pid))
+      combinational.append('assign R%dO = ram[reg_R%dA];' % (pid, pid))
+
+    for pid in rwports:
+      decl.append('reg [%d:0] reg_RW%dA;' % (addr_width-1, pid))
+      sequential.append('if (RW%dE && !RW%dW) reg_RW%dA <= RW%dA;' % (pid, pid, pid, pid))
+      combinational.append('assign RW%dO = ram[reg_RW%dA];' % (pid, pid))
+
+    for pid in latchports:
+      decl.append('reg [%d:0] latch_W%dA;' % (addr_width-1, pid))
+      decl.append('reg [%d:0] latch_W%dI;' % (width-1, pid))
+      decl.append('reg latch_W%dE;' % (pid))
+      combinational.append('always @(*) begin')
+      combinational.append('  if (!CLK && W%dE) latch_W%dA <= W%dA;' % (pid, pid, pid))
+      combinational.append('  if (!CLK && W%dE) latch_W%dI <= W%dI;' % (pid, pid, pid))
+      combinational.append('  if (!CLK) latch_W%dE <= W%dE;' % (pid, pid))
+      combinational.append('end')
+      combinational.append('always @(*)')
+      combinational.append('  if (CLK && latch_W%dE)' % (pid))
+      combinational.append('    ram[latch_W%dA] <= latch_W%dI;' % (pid, pid))
+
+    decl.append("integer i;")
+    sequential.append("for (i = 0; i < %d; i=i+1) begin" % width)
+    for pid in writeports:
+      mask = (' && W%dM[i]' % pid) if pid in maskedports else ''
+      sequential.append("  if (W%dE%s) ram[W%dA][i] <= W%dI[i];" % (pid, mask, pid, pid))
+    for pid in rwports:
+      mask = (' && RW%dM[i]' % pid) if pid in maskedports else ''
+      sequential.append("  if (RW%dE && RW%dW%s) ram[RW%dA][i] <= RW%dI[i];" % (pid, pid, mask, pid, pid))
+    sequential.append("end")
+    body = "\
+  %s\n\
+  always @(posedge CLK) begin\n\
+    %s\n\
+  end\n\
+  %s\n" % ('\n  '.join(decl), '\n    '.join(sequential), '\n  '.join(combinational))
+  
+  s = "module %s(\n\
+  %s\n\
+);\n\
+\n\
+%s\
+\n\
+endmodule\n" % (name, ',\n  '.join(port_spec), body)
+  return s
+
+def main():
+  if len(sys.argv) < 2:
+    sys.exit('Please give a .conf file as input')
+  for line in open(sys.argv[1]):
+    print gen_mem(*parse_line(line))
+
+if __name__ == '__main__':
+  main()

@@ -1,0 +1,106 @@
+#--------------------------------------------------------------------
+# Sources
+#--------------------------------------------------------------------
+
+# Specify what the toplevel verilog module is
+
+dc_toplevel = $(TOP)
+dc_testharness = KeyValueStore.DefaultConfig-harness
+dc_toplevelinst = KeyValueStore.DefaultConfig
+
+# Verilog sources (do not include test harness!)
+
+dc_vsrcs = \
+	$(build_dir)/generated-src/$(dc_toplevelinst).v \
+
+#--------------------------------------------------------------------
+# Build rules
+#--------------------------------------------------------------------
+
+dc_dir = $(build_dir)/dc-syn
+
+dc_exec = dc_shell-xg-t -64bit -topographical_mode
+fm_exec = fm_shell -64bit
+dc_build_suffix = $(shell date +%Y-%m-%d_%H-%M)
+dc_build_dir = $(dc_dir)/build-dc-$(dc_clock_period)ns-$(dc_build_suffix)
+dc_cur_build_dir = $(dc_dir)/current-dc
+dc_reports_dir = reports
+dc_results_dir = results
+dc_log_dir = log
+
+dc = $(dc_cur_build_dir)/dc
+fm = $(dc_cur_build_dir)/fm
+
+dc_timestamp = $(dc_cur_build_dir)/timestamp
+dc_ddc = $(dc_cur_build_dir)/$(dc_results_dir)/$(dc_toplevel).mapped.ddc
+dc_v = $(dc_cur_build_dir)/$(dc_results_dir)/$(dc_toplevel).mapped.v
+dc_access_tab = $(dc_cur_build_dir)/access.tab
+dc_force_regs = $(dc_cur_build_dir)/force_regs.ucli
+
+fm_rpt = $(dc_cur_build_dir)/$(dc_reports_dir)/$(dc_toplevel).fmv_verify.rpt
+
+dc_setup_dir = $(dc_dir)/setup
+dc_scripts_dir = $(dc_dir)/dc_scripts
+
+dc_vars_tcl = $(dc_setup_dir)/common_setup.tcl $(dc_setup_dir)/dc_setup.tcl $(dc_setup_dir)/dc_setup_filenames.tcl
+dc_makegen_tcl = make_generated_vars.tcl
+
+dc_tcl = $(dc_scripts_dir)/dc.tcl
+dc_retime_tcl = $(dc_scripts_dir)/dc_retime.tcl
+dc_misc_tcl = $(dc_scripts_dir)/find_regs.tcl
+fm_tcl = $(dc_scripts_dir)/fm.tcl
+dc_constraints_tcl = $(dc_setup_dir)/constraints.tcl
+
+dc_vars = \
+	set DESIGN_NAME                 "$(dc_toplevel)";\n \
+	set STRIP_PATH                  "$(dc_testharness)/$(dc_toplevelinst)";\n \
+	set ADDITIONAL_SEARCH_PATH      "$(cells_db_dir) $(srams_dir) $(build_dir)/generated-src";\n \
+	set TARGET_LIBRARY_FILES        "$(cells_db) $(srams_db)";\n \
+	set MW_REFERENCE_LIB_DIRS       "$(cells_mw) $(srams_mw)";\n \
+	set MIN_LIBRARY_FILES           "$(min_library)";\n \
+	set TECH_FILE                   "$(techfile_dir)/techfile.tf";\n \
+	set MAP_FILE                    "$(techfile_dir)/tech2itf.map";\n \
+	set TLUPLUS_MAX_FILE            "$(tluplus_dir)/max.tluplus";\n \
+	set TLUPLUS_MIN_FILE            "$(tluplus_dir)/min.tluplus";\n \
+	set ALIB_DIR                    "../alib";\n \
+	set RTL_SOURCE_FILES            "$(notdir $(dc_vsrcs))";\n \
+	set DCRM_CONSTRAINTS_INPUT_FILE "constraints.tcl";\n \
+	set REPORTS_DIR                 "$(dc_reports_dir)";\n \
+	set RESULTS_DIR                 "$(dc_results_dir)";\n \
+	set CLOCK_PERIOD                "$(dc_clock_period)";\n \
+	set CLOCK_UNCERTAINTY           "$(clock_uncertainty)";\n \
+	set INPUT_DELAY                 "$(input_delay)";\n \
+	set OUTPUT_DELAY                "$(output_delay)";\n \
+
+$(dc_timestamp): $(dc_vsrcs) $(dc_vars_tcl) $(dc_constraints_tcl) $(dc_tcl) $(dc_misc_tcl)
+	cd $(dc_dir); \
+	mkdir $(dc_build_dir); \
+	rm -f $(dc_cur_build_dir); \
+	ln -s $(notdir $(dc_build_dir)) $(dc_cur_build_dir); \
+	cp $(dc_tcl) $(dc_misc_tcl) $(dc_constraints_tcl) $(dc_vars_tcl) $(dc_cur_build_dir); \
+	cp ../Makefrag $(dc_cur_build_dir); \
+	echo -e '$(dc_vars)' > $(dc_cur_build_dir)/$(dc_makegen_tcl); \
+	date > $(dc_timestamp); \
+
+$(dc_ddc): $(srams_db) $(srams_mw) $(dc_timestamp)
+	cd $(dc_cur_build_dir); \
+	mkdir -p $(dc_log_dir); \
+	$(dc_exec) -f $(notdir $(dc_tcl)) | tee $(dc_log_dir)/dc.log; \
+	date > $(notdir $(dc)); \
+	cd ..
+$(dc_v): $(dc_ddc)
+
+dc: $(dc_ddc)
+
+$(fm_rpt): $(dc_ddc) $(fm_tcl)
+	cp $(fm_tcl) $(dc_constraints_tcl) $(dc_vars_tcl) $(dc_cur_build_dir)
+	echo -e '$(dc_vars)' > $(dc_cur_build_dir)/$(dc_makegen_tcl)
+	cd $(dc_cur_build_dir); \
+	mkdir -p $(dc_log_dir); \
+	$(fm_exec) -f $(notdir $(fm_tcl)) | tee $(dc_log_dir)/fm.log; \
+	date > $(notdir $(fm)); \
+	cd ..
+
+fm: $(fm_rpt)
+
+srams: $(srams_db)
