@@ -125,18 +125,18 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int,
     val keyReadData = UInt(OUTPUT, WordSize)
   }
 
-  val mem = Mem(UInt(width = WordSize), NumWords)
+  val mem = Module(new BankedMem(WordSize, NumWords / 4, 4))
 
   val hw = Module(new HasherWriter(HashSize, WordSize, KeySize, TagSize))
   hw.io.keyData <> io.keyData
   hw.io.keyInfo <> io.keyInfo
   hw.io.hashOut <> io.hashOut
+  hw.io.keyWrite     <> mem.io.writeEn
+  hw.io.keyWriteAddr <> mem.io.writeAddr
+  hw.io.keyWriteData <> mem.io.writeData
 
-  when (hw.io.keyWrite) {
-    mem(hw.io.keyWriteAddr) := hw.io.keyWriteData
-  }
-
-  io.keyReadData := mem(io.keyReadAddr)
+  mem.io.readAddr := io.keyReadAddr
+  io.keyReadData := mem.io.readData
 }
 
 class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
@@ -177,7 +177,7 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
 
   for (i <- 0 until keyWords.length) {
     poke(c.io.keyReadAddr, i)
-    step(1)
+    step(3)
     expect(c.io.keyReadData, keyWords(i))
   }
 }

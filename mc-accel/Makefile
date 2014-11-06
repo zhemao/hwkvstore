@@ -47,6 +47,9 @@ keycompare-test:
 hasherwriter-test:
 	sbt "run-main McAccel.HasherWriterMain $(TEST_FLAGS)"
 
+bankedmem-test:
+	sbt "run-main McAccel.BankedMemMain $(TEST_FLAGS)"
+
 hasherwriter-vlsi:
 	sbt "run-main McAccel.HasherWriterMain $(VLSI_COMPILE_FLAGS)"
 

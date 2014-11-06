@@ -7,6 +7,7 @@ class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val KeyLenSize = log2Up(KeySize)
   val WordShift = log2Up(WordSize) - 3
   val KeyAddrSize = KeyLenSize - WordShift
+  val ReadDelay = 3
 
   val io = new Bundle {
     val curKeyAddr = UInt(OUTPUT, KeyAddrSize)
@@ -30,12 +31,12 @@ class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val nextlen = Mux(len(KeyLenSize - 1, WordShift) === UInt(0),
     UInt(0), len - UInt(BytesPerWord))
 
-  val lastWrite = Reg(next = write)
-  val lastIndex = Reg(next = index)
+  val delayedWrite = ShiftRegister(write, ReadDelay)
+  val delayedIndex = ShiftRegister(index, ReadDelay)
 
   io.curKeyAddr := index
-  io.allKeyAddr := Cat(hash, lastIndex)
-  io.allKeyWrite := lastWrite
+  io.allKeyAddr := Cat(hash, delayedIndex)
+  io.allKeyWrite := delayedWrite
   io.allKeyData := io.curKeyData
   io.selCopy := (state === s_copy)
   io.copyReq.ready := (state === s_wait)

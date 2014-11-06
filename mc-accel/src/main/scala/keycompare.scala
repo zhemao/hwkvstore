@@ -21,8 +21,9 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val findAvailable = Bool(INPUT)
   }
 
+  val ReadDelay = 3
   val index = Reg(UInt(width = KeyAddrSize))
-  val lenAddr = Reg(UInt(width = HashSize))
+  val delayedIndex = ShiftRegister(index, ReadDelay)
 
   val curInfo = Reg(new HashInfo(HashSize, KeyLenSize, TagSize))
   val checkFirst = Reg(Bool())
@@ -32,15 +33,16 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   // lenAddr should not be delayed
   io.curKeyAddr := index
   io.allKeyAddr := Cat(curHash, index)
-  io.lenAddr := lenAddr
+  io.lenAddr := curHash
 
   val wordLen = curInfo.len(KeyLenSize - 1, WordShift)
   val reachedEnd = if (WordShift == 0) {
-    index === wordLen
+    delayedIndex === wordLen - UInt(1)
   } else {
     val byteOff = curInfo.len(WordShift - 1, 0)
     Mux(byteOff === UInt(0),
-      index === wordLen, index === wordLen + UInt(1))
+      delayedIndex === wordLen - UInt(1),
+      delayedIndex === wordLen)
   }
 
   val (s_wait :: s_delay_len :: s_check_len ::
@@ -48,6 +50,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   val state = Reg(init = s_wait)
 
   val hashFound = Reg(Bool())
+  val delayCount = Reg(UInt(width = log2Up(ReadDelay)))
 
   io.hashOut.bits.hash := curHash
   io.hashOut.bits.found := hashFound
@@ -65,15 +68,15 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       }
     }
     is (s_delay_len) {
-      lenAddr := curHash
       state := s_check_len
-      index := UInt(0)
     }
     is (s_check_len) {
       when (io.findAvailable && io.lenData === UInt(0)) {
         hashFound := Bool(true)
         state := s_handoff
       } .elsewhen (io.lenData === curInfo.len) {
+        index := UInt(0)
+        delayCount := UInt(ReadDelay)
         state := s_check_data
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
@@ -83,7 +86,10 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       }
     }
     is (s_check_data) {
-      when (io.curKeyData != io.allKeyData) {
+      when (delayCount != UInt(0)) {
+        delayCount := delayCount - UInt(1)
+        index := index + UInt(1)
+      } .elsewhen (io.curKeyData != io.allKeyData) {
         when (checkFirst) {
           checkFirst := Bool(false)
           state := s_delay_len
@@ -140,8 +146,8 @@ class KeyCompareSetup(
     val findAvailable = Bool(INPUT)
   }
 
-  val curKeyMem = Mem(UInt(width = WordSize), CurKeyWords)
-  val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords)
+  val curKeyMem = Module(new BankedMem(WordSize, CurKeyWords / 2, 2))
+  val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
   val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize, TagSize))
@@ -158,21 +164,21 @@ class KeyCompareSetup(
   io.found := keycomp.io.hashOut.bits.found
   io.outtag := keycomp.io.hashOut.bits.tag
 
-  val curKeyAddr = Reg(next = keycomp.io.curKeyAddr)
-  keycomp.io.curKeyData := curKeyMem(curKeyAddr)
+  keycomp.io.curKeyData <> curKeyMem.io.readData
+  keycomp.io.curKeyAddr <> curKeyMem.io.readAddr
+  keycomp.io.allKeyData <> allKeyMem.io.readData
+  keycomp.io.allKeyAddr <> allKeyMem.io.readAddr
 
-  val allKeyAddr = Reg(next = keycomp.io.allKeyAddr)
-  keycomp.io.allKeyData := allKeyMem(allKeyAddr)
+  val lenReadAddr = Reg(next = keycomp.io.lenAddr)
+  keycomp.io.lenData := lenMem(lenReadAddr)
 
-  keycomp.io.lenData := lenMem(keycomp.io.lenAddr)
+  curKeyMem.io.writeAddr := io.curKeyAddr
+  curKeyMem.io.writeData := io.curKeyData
+  curKeyMem.io.writeEn   := io.curKeyWrite
 
-  when (io.curKeyWrite) {
-    curKeyMem(io.curKeyAddr) := io.curKeyData
-  }
-
-  when (io.allKeyWrite) {
-    allKeyMem(io.allKeyAddr) := io.allKeyData
-  }
+  allKeyMem.io.writeAddr := io.allKeyAddr
+  allKeyMem.io.writeData := io.allKeyData
+  allKeyMem.io.writeEn   := io.allKeyWrite
 
   when (io.lenWrite) {
     lenMem(io.lenAddr) := io.lenData

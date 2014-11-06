@@ -72,8 +72,8 @@ class LookupPipeline(
   val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
   keycopy.io.copyReq <> io.copyReq
 
-  val curKeyMem = Mem(UInt(width = WordSize), 2 * CurKeyWords, true)
-  val allKeyMem = Mem(UInt(width = WordSize), AllKeyWords, true)
+  val curKeyMem = Module(new BankedMem(WordSize, CurKeyWords, 2))
+  val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys, true)
 
   val swapped = Reg(init = Bool(false))
@@ -82,35 +82,25 @@ class LookupPipeline(
   val curReadAddrExt = Cat(!swapped, curReadAddrRaw)
   val hwWriteAddr = Cat(swapped, hasherwriter.io.keyWriteAddr)
 
-  val allReadAddr = Reg(next = keycompare.io.allKeyAddr)
-  val curReadAddr = Reg(next = curReadAddrExt)
-  val curReadData = curKeyMem(curReadAddr)
-  val curWriteAddr = Reg(next = hwWriteAddr)
-  val curWriteData = Reg(next = hasherwriter.io.keyWriteData)
-  val curWrite = Reg(next = hasherwriter.io.keyWrite)
+  curKeyMem.io.readAddr  := curReadAddrExt
+  curKeyMem.io.writeAddr := hwWriteAddr
+  curKeyMem.io.writeData := hasherwriter.io.keyWriteData
+  curKeyMem.io.writeEn   := hasherwriter.io.keyWrite
 
-
-  when (curWrite) {
-    curKeyMem(curWriteAddr) := curWriteData
-  }
-
-  val allWriteAddr = Reg(next = keycopy.io.allKeyAddr)
-  val allWriteEn = Reg(next = keycopy.io.allKeyWrite)
-  val allWriteData = Reg(next = keycopy.io.allKeyData)
-
-  when (allWriteEn) {
-    allKeyMem(allWriteAddr) := allWriteData
-  }
+  allKeyMem.io.readAddr  := keycompare.io.allKeyAddr
+  allKeyMem.io.writeAddr := keycopy.io.allKeyAddr
+  allKeyMem.io.writeData := keycopy.io.allKeyData
+  allKeyMem.io.writeEn   := keycopy.io.allKeyWrite
 
   when (io.keyLenWrite) {
     lenMem(io.keyLenAddr) := io.keyLenData
   }
 
-  keycompare.io.curKeyData := curReadData
-  keycompare.io.allKeyData := allKeyMem(allReadAddr)
-  keycompare.io.lenData := lenMem(keycompare.io.lenAddr)
-
-  keycopy.io.curKeyData := curReadData
+  keycompare.io.curKeyData := curKeyMem.io.readData
+  keycompare.io.allKeyData := allKeyMem.io.readData
+  val lenAddr = Reg(next = keycompare.io.lenAddr)
+  keycompare.io.lenData := lenMem(lenAddr)
+  keycopy.io.curKeyData := curKeyMem.io.readData
 
   when (hasherwriter.io.hashOut.valid && keycompare.io.hashIn.ready) {
     swapped := !swapped
