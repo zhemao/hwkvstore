@@ -32,10 +32,10 @@ class KeyValueStore extends Module {
 
   val lookup = Module(
     new LookupPipeline(WordSize, KeySize, NumKeys, ValCacheSize, TagSize))
-  lookup.io.readKeyInfo <> io.keyInfo
-  lookup.io.readKeyData <> io.keyData
-  lookup.io.resultInfo  <> io.resultInfo
-  lookup.io.resultData  <> io.resultData
+  lookup.io.readKeyInfo <> Queue(io.keyInfo, 2)
+  lookup.io.readKeyData <> Queue(io.keyData, 2)
+  io.resultInfo <> Queue(lookup.io.resultInfo, 2)
+  io.resultData <> Queue(lookup.io.resultData, 2)
 
   val ctrl = Module(
     new CtrlModule(WordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
