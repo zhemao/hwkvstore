@@ -6,6 +6,7 @@ import McAccel.TestUtils._
 class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val HashSize = log2Up(NumKeys)
   val AddrSize = log2Up(CacheSize)
+  val ReadDelay = 3
 
   val io = new Bundle {
     val hashIn = Decoupled(new HashSelection(HashSize, TagSize)).flip
@@ -22,17 +23,14 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     val addrLenReadData = new AddrLenPair(AddrSize, OUTPUT)
   }
 
-  val cacheMem = Mem(UInt(width = 8), CacheSize, true)
+  val cacheMem = Module(new BankedMem(8, 256, CacheSize / 256))
   val cacheAddr = Reg(UInt(width = AddrSize))
-  val cacheData = cacheMem(cacheAddr)
+  cacheMem.io.readAddr := cacheAddr
+  val cacheData = cacheMem.io.readData
 
-  val cacheWriteEn = Reg(next = io.cacheWriteEn)
-  val cacheWriteAddr = Reg(next = io.cacheWriteAddr)
-  val cacheWriteData = Reg(next = io.cacheWriteData)
-
-  when (cacheWriteEn) {
-    cacheMem(cacheWriteAddr) := cacheWriteData
-  }
+  cacheMem.io.writeAddr := io.cacheWriteAddr
+  cacheMem.io.writeData := io.cacheWriteData
+  cacheMem.io.writeEn   := io.cacheWriteEn
 
   val addrTable = Mem(UInt(width = AddrSize), NumKeys, true)
   val lenTable  = Mem(UInt(width = AddrSize), NumKeys, true)
@@ -56,6 +54,9 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 
   val (s_wait :: s_notfound :: s_lookup :: s_notify :: s_stream :: Nil) = Enum(UInt(), 5)
   val state = Reg(init = s_wait)
+
+  val dataValid = Reg(init = Bool(false))
+  val delayedValid = ShiftRegister(dataValid, ReadDelay)
 
   switch (state) {
     is (s_wait) {
@@ -82,16 +83,19 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     }
     is (s_notify) {
       when (io.resultInfo.ready) {
+        dataValid := Bool(true)
         len := len - UInt(1)
         state := s_stream
       }
     }
     is (s_stream) {
-      when (io.resultData.ready) {
+      dataValid := Bool(false)
+      when (io.resultData.ready && delayedValid) {
         when (len === UInt(0)) {
           state := s_wait
         } .otherwise {
           cacheAddr := cacheAddr + UInt(1)
+          dataValid := Bool(true)
           len := len - UInt(1)
         }
       }
@@ -102,6 +106,6 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   io.resultInfo.bits.len := len
   io.resultInfo.bits.tag := tag
   io.resultInfo.valid := (state === s_notify || state === s_notfound)
-  io.resultData.valid := (state === s_stream)
+  io.resultData.valid := delayedValid
   io.resultData.bits := cacheData
 }

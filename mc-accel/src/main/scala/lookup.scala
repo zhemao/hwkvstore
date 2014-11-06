@@ -193,7 +193,8 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     poke(c.io.resultData.ready, 1)
 
     for (ch <- value) {
-      expect(c.io.resultData.valid, 1)
+      while (peek(c.io.resultData.valid) == 0)
+        step(1)
       expect(c.io.resultData.bits, ch)
       step(1)
     }
