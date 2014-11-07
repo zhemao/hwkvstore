@@ -2,7 +2,7 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
-import McAccel.Constants.MemReadDelay
+import McAccel.Constants.MaxFanIn
 
 class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {
@@ -22,9 +22,12 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val findAvailable = Bool(INPUT)
   }
 
-  val MemReadDelay = 4
+  val DecodeDelay = (HashSize - 1) / log2Up(MaxFanIn) + 1
+  val AllReadDelay = 2 + DecodeDelay
+  val curKeyData = ShiftRegister(io.curKeyData, DecodeDelay)
+
   val index = Reg(UInt(width = KeyAddrSize))
-  val delayedIndex = ShiftRegister(index, MemReadDelay)
+  val delayedIndex = ShiftRegister(index, AllReadDelay)
 
   val curInfo = Reg(new HashInfo(HashSize, KeyLenSize, TagSize))
   val checkFirst = Reg(Bool())
@@ -51,7 +54,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   val state = Reg(init = s_wait)
 
   val hashFound = Reg(Bool())
-  val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
+  val delayCount = Reg(UInt(width = log2Up(AllReadDelay)))
 
   io.hashOut.bits.hash := curHash
   io.hashOut.bits.found := hashFound
@@ -77,7 +80,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         state := s_handoff
       } .elsewhen (io.lenData === curInfo.len) {
         index := UInt(0)
-        delayCount := UInt(MemReadDelay - 1)
+        delayCount := UInt(AllReadDelay - 1)
         state := s_delay_data
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
@@ -95,7 +98,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       }
     }
     is (s_check_data) {
-      when (io.curKeyData != io.allKeyData) {
+      when (curKeyData != io.allKeyData) {
         when (checkFirst) {
           checkFirst := Bool(false)
           state := s_delay_len

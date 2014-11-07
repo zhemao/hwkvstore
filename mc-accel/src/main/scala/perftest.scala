@@ -42,6 +42,7 @@ class KeyValueChecker(
   def process() {
     if (actualLen == 0) {
       if (!resultInfo.isEmpty) {
+        println(s"Receiving result for ${recvIndex}")
         actualLen = resultInfo.dequeue()
         val expectedLen = kvPairs(requests(recvIndex)).length
         if (actualLen != expectedLen) {

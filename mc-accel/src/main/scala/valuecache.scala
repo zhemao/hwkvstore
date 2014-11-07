@@ -28,6 +28,8 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   cacheMem.io.readAddr := cacheAddr
   val cacheData = cacheMem.io.readData
 
+  val MemReadDelay = cacheMem.DecodeDelay + 2
+
   cacheMem.io.writeAddr := io.cacheWriteAddr
   cacheMem.io.writeData := io.cacheWriteData
   cacheMem.io.writeEn   := io.cacheWriteEn

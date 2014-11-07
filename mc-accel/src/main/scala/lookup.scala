@@ -72,7 +72,7 @@ class LookupPipeline(
   val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
   keycopy.io.copyReq <> io.copyReq
 
-  val curKeyMem = Module(new BankedMem(WordSize, CurKeyWords, 2))
+  val curKeyMem = Module(new UnbankedMem(WordSize, CurKeyWords * 2))
   val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys, true)
 
@@ -185,21 +185,25 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
     expect(c.io.resultInfo.bits.len, value.length)
     expect(c.io.resultInfo.bits.tag, tag)
+    val keyFound = peek(c.io.resultInfo.bits.len) != 0
 
     poke(c.io.resultInfo.ready, 1)
     step(1)
     poke(c.io.resultInfo.ready, 0)
-    poke(c.io.resultInfo.ready, 0)
-    poke(c.io.resultData.ready, 1)
 
-    for (ch <- value) {
-      while (peek(c.io.resultData.valid) == 0)
+    if (keyFound) {
+      poke(c.io.resultData.ready, 1)
+
+      for (ch <- value) {
+        while (peek(c.io.resultData.valid) == 0)
+          step(1)
+        expect(c.io.resultData.valid, 1)
+        expect(c.io.resultData.bits, ch)
         step(1)
-      expect(c.io.resultData.bits, ch)
-      step(1)
-    }
+      }
 
-    poke(c.io.resultData.ready, 0)
+      poke(c.io.resultData.ready, 0)
+    }
   }
 
   def writeKey(key: String, tag: Int) = {

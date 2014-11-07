@@ -54,5 +54,5 @@ object Constants {
 
   val HashNotFound = 0xffffff
 
-  val MemReadDelay = 4
+  val MaxFanIn = 32
 }

@@ -2,7 +2,7 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
-import McAccel.Constants.MemReadDelay
+import McAccel.Constants.MaxFanIn
 
 class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
   val AddrSize = log2Up(MemSize)
@@ -24,7 +24,7 @@ class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
 
   val readData = mem(readAddrReg)
 
-  io.readData := ShiftRegister(readData, 3)
+  io.readData := Reg(next = readData)
 
   when (writeEnReg) {
     mem(writeAddrReg) := writeDataReg
@@ -37,9 +37,6 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
 
   val FullAddrSize = log2Up(TotalSize)
   val BankAddrSize = log2Up(BankSize)
-  val BankSelSize = FullAddrSize - BankAddrSize
-  val PrimaryBankSelSize = BankSelSize / 2
-  val SecondaryBankSelSize = BankSelSize - PrimaryBankSelSize
 
   val io = new Bundle {
     val readAddr = UInt(INPUT, FullAddrSize)
@@ -49,6 +46,10 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
     val writeData = UInt(INPUT, WordSize)
     val writeEn   = Bool(INPUT)
   }
+
+  val FullBankSelSize = FullAddrSize - BankAddrSize
+  val BankSelSize = log2Up(MaxFanIn)
+  val DecodeDelay = (FullBankSelSize - 1) / BankSelSize + 1
 
   val bankReadAddr0 = io.readAddr(BankAddrSize - 1, 0)
   val bankReadSel0  = io.readAddr(FullAddrSize - 1, BankAddrSize)
@@ -81,28 +82,43 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
     }
   }
 
-  if (NumBanks > 2) {
-    val NumSecondaryBanks = 1 << SecondaryBankSelSize
-    val NumPrimaryBanks = 1 << PrimaryBankSelSize
-    val bankReadData3 = Vec.fill(NumSecondaryBanks) {
-      Reg(UInt(width = WordSize))
-    }
-    val primBankSel = bankReadSel2(PrimaryBankSelSize - 1, 0)
-    for (i <- 0 until NumSecondaryBanks) {
-      val subBankData = Vec.fill(NumPrimaryBanks) { UInt(width = WordSize) }
-      for (j <- 0 until NumPrimaryBanks) {
-        subBankData(j) := bankReadData2(i * NumPrimaryBanks + j)
-      }
-      bankReadData3(i) := subBankData(primBankSel)
-    }
-    val secBankSel = Reg(
-      next = bankReadSel2(BankSelSize - 1, PrimaryBankSelSize))
-    val readData3 = bankReadData3(secBankSel)
-    val readData4 = Reg(next = readData3)
-    io.readData := readData4
-  } else {
+  if (DecodeDelay == 1) {
     val readData2 = bankReadData2(bankReadSel2)
-    io.readData := ShiftRegister(readData2, 2)
+    val readData3 = Reg(next = readData2)
+    io.readData := readData3
+  } else {
+    val bankReadDataStages = new Array[Vec[UInt]](DecodeDelay)
+    val bankReadSelStages  = new Array[(Int, UInt)](DecodeDelay)
+
+    bankReadDataStages(0) = bankReadData2
+    bankReadSelStages(0) = (FullBankSelSize, bankReadSel2)
+
+    for (stage <- 1 until DecodeDelay) {
+      val lastStage = bankReadDataStages(stage - 1)
+      val (lastWidth, lastSel) = bankReadSelStages(stage - 1)
+      val curSel = lastSel(BankSelSize - 1, 0)
+      val nextSel = lastSel(lastWidth - 1, BankSelSize)
+      val nextWidth = lastWidth - BankSelSize
+      val stageSize = lastStage.size / MaxFanIn
+
+      val curStage = Vec.fill(stageSize) {
+        Reg(UInt(width = WordSize))
+      }
+      for (i <- 0 until stageSize) {
+        val subBank = Vec.tabulate(MaxFanIn) {
+          j => lastStage(i * MaxFanIn + j)
+        }
+        curStage(i) := subBank(curSel)
+      }
+      bankReadDataStages(stage) = curStage
+      bankReadSelStages(stage) = (nextWidth, Reg(next = nextSel))
+    }
+
+    val finalStage = bankReadDataStages(DecodeDelay - 1)
+    val finalSel = bankReadSelStages(DecodeDelay - 1)._2
+    val readDataFin = finalStage(finalSel)
+    val readDataReg = Reg(next = readDataFin)
+    io.readData := readDataReg
   }
 }
 
@@ -110,6 +126,7 @@ class BankedMemTester(c: BankedMem) extends Tester(c) {
   val NumTests = 10
   val addrs =  Array.fill(NumTests) { rnd.nextInt(c.TotalSize) }
   val values = Array.fill(NumTests) { rnd.nextInt(1 << c.WordSize) }
+  val MemReadDelay = 2 + c.DecodeDelay
 
   poke(c.io.writeEn, 1)
   for (i <- 0 until NumTests) {

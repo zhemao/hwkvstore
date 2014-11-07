@@ -8,6 +8,7 @@ class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val KeyLenSize = log2Up(KeySize)
   val WordShift = log2Up(WordSize) - 3
   val KeyAddrSize = KeyLenSize - WordShift
+  val MemReadDelay = 2
 
   val io = new Bundle {
     val curKeyAddr = UInt(OUTPUT, KeyAddrSize)
