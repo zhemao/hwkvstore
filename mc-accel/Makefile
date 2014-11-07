@@ -55,3 +55,6 @@ hasherwriter-vlsi:
 
 lookup-vlsi:
 	sbt "run-main McAccel.LookupPipelineMain $(VLSI_COMPILE_FLAGS)"
+
+dc-syn:
+	make -C build/vlsi/dc-syn SHELL=/bin/bash
