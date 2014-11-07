@@ -70,7 +70,7 @@ sram_conf_dir = $(vlsi_dir)/sram
 #srams = $(notdir $(basename $(wildcard $(sram_conf_dir)/*.conf)))
 #available_srams = $(notdir $(basename $(wildcard $(sram_conf_dir)/*.conf)))
 	# convenience target for projects that do not want manually list all srams
-srams = sram32x64 sram8x256 sram8x1024
+srams = sram32x64 sram32x128 sram8x256 sram8x1024
 
 sram_dir = $(build_dir)/generated-rams
 srams_v  = $(foreach sram,$(srams),$(sram_dir)/$(sram).v)

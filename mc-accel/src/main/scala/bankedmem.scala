@@ -21,7 +21,7 @@ class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
   val writeDataReg = Reg(next = io.writeData)
   val writeEnReg   = Reg(next = io.writeEn)
 
-  val mem = Mem(UInt(width = WordSize), MemSize)
+  val mem = Mem(UInt(width = WordSize), MemSize, true)
 
   val readData = mem(readAddrReg)
 
