@@ -150,11 +150,9 @@ def gen_mem(name, width, depth, ports):
 
   mems = {}
   # (depth, width, r, w, rw, bm) = (name, actual width, quantized width, #, bm)
-  mems[(2048,32,1,1,0,False)] = ("keymem32",32,32,1,False)
-  mems[(65536,32,1,1,0,False)] = ("keymem1024",32,32,1,False)
-  mems[(128,32,1,1,0,False)] = ("keymem2",32,32,1,False)
-  mems[(1024,8,1,1,0,False)] = ("valcache1k",8,8,1,False)
-  mems[(524288,8,1,1,0,False)] = ("valcache512k",8,8,1,False)
+  mems[(1024,8,1,1,0,False)] = ("sram8x1024",8,8,1,False)
+  mems[(64,32,1,1,0,False)]  = ("sram32x64",32,32,1,False)
+  mems[(256,8,1,1,0,False)]  = ("sram8x256",8,8,1,False)
 
   nr = len(readports)
   nw = len(writeports)
