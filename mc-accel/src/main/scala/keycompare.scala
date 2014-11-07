@@ -188,6 +188,7 @@ class KeyCompareSetup(
   allKeyMem.io.writeAddr := io.allKeyAddr
   allKeyMem.io.writeData := io.allKeyData
   allKeyMem.io.writeEn   := io.allKeyWrite
+  allKeyMem.io.readEn    := Bool(true)
 
   when (io.lenWrite) {
     lenMem(io.lenAddr) := io.lenData

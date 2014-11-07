@@ -25,8 +25,11 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 
   val cacheMem = Module(new BankedMem(8, 256, CacheSize / 256))
   val cacheAddr = Reg(UInt(width = AddrSize))
-  cacheMem.io.readAddr := cacheAddr
   val cacheData = cacheMem.io.readData
+  val cacheReadEn = Reg(init = Bool(false))
+
+  cacheMem.io.readAddr := cacheAddr
+  cacheMem.io.readEn   := cacheReadEn
 
   val MemReadDelay = cacheMem.DecodeDelay + 2
 
@@ -54,11 +57,11 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val tag = Reg(UInt(width = TagSize))
   val len = Reg(UInt(width = AddrSize))
 
-  val (s_wait :: s_notfound :: s_lookup :: s_notify :: s_stream :: Nil) = Enum(UInt(), 5)
+  val (s_wait :: s_notfound :: s_lookup :: s_notify ::
+       s_delay :: s_stream :: Nil) = Enum(UInt(), 6)
   val state = Reg(init = s_wait)
 
-  val dataValid = Reg(init = Bool(false))
-  val delayedValid = ShiftRegister(dataValid, MemReadDelay)
+  val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
 
   switch (state) {
     is (s_wait) {
@@ -85,19 +88,31 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     }
     is (s_notify) {
       when (io.resultInfo.ready) {
-        dataValid := Bool(true)
-        len := len - UInt(1)
+        state := s_delay
+        delayCount := UInt(MemReadDelay - 1)
+        cacheReadEn := Bool(true)
+      }
+    }
+    is (s_delay) {
+      cacheAddr := cacheAddr + UInt(1)
+      cacheReadEn := Bool(true)
+
+      when (delayCount === UInt(0)) {
         state := s_stream
+        len := len - UInt(1)
+      } .otherwise {
+        delayCount := delayCount - UInt(1)
       }
     }
     is (s_stream) {
-      dataValid := Bool(false)
-      when (io.resultData.ready && delayedValid) {
+      cacheReadEn := Bool(false)
+      when (io.resultData.ready) {
         when (len === UInt(0)) {
           state := s_wait
+          cacheReadEn := Bool(false)
         } .otherwise {
           cacheAddr := cacheAddr + UInt(1)
-          dataValid := Bool(true)
+          cacheReadEn := Bool(true)
           len := len - UInt(1)
         }
       }
@@ -108,6 +123,61 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   io.resultInfo.bits.len := len
   io.resultInfo.bits.tag := tag
   io.resultInfo.valid := (state === s_notify || state === s_notfound)
-  io.resultData.valid := delayedValid
+  io.resultData.valid := (state === s_stream)
   io.resultData.bits := cacheData
+}
+
+class ValueCacheTest(c: ValueCache) extends Tester(c) {
+  val TestSize = 100
+  val data = (0 until TestSize).map { i => rnd.nextInt(256) }
+
+  poke(c.io.cacheWriteEn, 1)
+  for (i <- 0 until TestSize) {
+    poke(c.io.cacheWriteAddr, i)
+    poke(c.io.cacheWriteData, data(i))
+    step(1)
+  }
+  poke(c.io.cacheWriteEn, 0)
+
+  poke(c.io.addrLenAddr, 0)
+  poke(c.io.addrLenWriteData.addr, 0)
+  poke(c.io.addrLenWriteData.len, TestSize)
+  poke(c.io.addrLenWriteEn, Array[BigInt](1, 1))
+  step(1)
+  poke(c.io.addrLenWriteEn, Array[BigInt](0, 0))
+
+  poke(c.io.hashIn.bits.found, 1)
+  poke(c.io.hashIn.bits.hash, 0)
+  poke(c.io.hashIn.bits.tag, 0)
+  poke(c.io.hashIn.valid, 1)
+
+  expect(c.io.hashIn.ready, 1)
+  step(1)
+  poke(c.io.hashIn.valid, 0)
+
+  poke(c.io.resultInfo.ready, 1)
+  step(1)
+
+  expect(c.io.resultInfo.valid, 1)
+  expect(c.io.resultInfo.bits.tag, 0)
+  expect(c.io.resultInfo.bits.len, TestSize)
+  step(1)
+  poke(c.io.resultInfo.ready, 0)
+  poke(c.io.resultData.ready, 1)
+  step(c.MemReadDelay)
+
+  for (byte <- data) {
+    expect(c.io.resultData.valid, 1)
+    expect(c.io.resultData.bits, byte)
+    step(1)
+  }
+
+  expect(c.io.resultData.valid, 0)
+}
+
+object ValueCacheMain {
+  def main(args: Array[String]) {
+    chiselMain(args, () => Module(new ValueCache(256, 4096, 2)),
+      (c: ValueCache) => new ValueCacheTest(c))
+  }
 }

@@ -88,6 +88,7 @@ class LookupPipeline(
   curKeyMem.io.writeEn   := hasherwriter.io.keyWrite
 
   allKeyMem.io.readAddr  := keycompare.io.allKeyAddr
+  allKeyMem.io.readEn    := Bool(true)
   allKeyMem.io.writeAddr := keycopy.io.allKeyAddr
   allKeyMem.io.writeData := keycopy.io.allKeyData
   allKeyMem.io.writeEn   := keycopy.io.allKeyWrite

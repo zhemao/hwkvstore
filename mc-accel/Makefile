@@ -50,6 +50,9 @@ hasherwriter-test:
 bankedmem-test:
 	sbt "run-main McAccel.BankedMemMain $(TEST_FLAGS)"
 
+valuecache-test:
+	sbt "run-main McAccel.ValueCacheMain $(TEST_FLAGS)"
+
 hasherwriter-vlsi:
 	sbt "run-main McAccel.HasherWriterMain $(VLSI_COMPILE_FLAGS)"
 

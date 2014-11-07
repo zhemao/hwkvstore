@@ -9,6 +9,7 @@ class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
   val io = new Bundle {
     val readAddr = UInt(INPUT, AddrSize)
     val readData = UInt(OUTPUT, WordSize)
+    val readEn   = Bool(INPUT)
 
     val writeAddr = UInt(INPUT, AddrSize)
     val writeData = UInt(INPUT, WordSize)
@@ -41,6 +42,7 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
   val io = new Bundle {
     val readAddr = UInt(INPUT, FullAddrSize)
     val readData = UInt(OUTPUT, WordSize)
+    val readEn   = Bool(INPUT)
 
     val writeAddr = UInt(INPUT, FullAddrSize)
     val writeData = UInt(INPUT, WordSize)
@@ -53,9 +55,15 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
 
   val bankReadAddr0 = io.readAddr(BankAddrSize - 1, 0)
   val bankReadSel0  = io.readAddr(FullAddrSize - 1, BankAddrSize)
-  val bankReadAddr1 = Reg(next = bankReadAddr0)
-  val bankReadSel1  = Reg(next = bankReadSel0)
-  val bankReadSel2  = Reg(next = bankReadSel1)
+  val bankReadAddr1 = Reg(UInt(width = BankAddrSize))
+  val bankReadSel1  = Reg(UInt(width = FullBankSelSize))
+  val bankReadSel2  = Reg(UInt(width = FullBankSelSize))
+
+  when (io.readEn) {
+    bankReadAddr1 := bankReadAddr0
+    bankReadSel1 := bankReadSel0
+    bankReadSel2 := bankReadSel1
+  }
 
   val bankWriteAddr0 = io.writeAddr(BankAddrSize - 1, 0)
   val bankWriteSel0  = io.writeAddr(FullAddrSize - 1, BankAddrSize)
@@ -76,7 +84,9 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
 
   for (i <- 0 until NumBanks) {
     val bank = banks(i)
-    bankReadData2(i) := bank(bankReadAddr1)
+    when (io.readEn) {
+      bankReadData2(i) := bank(bankReadAddr1)
+    }
     when (bankWriteEn(i)) {
       bank(bankWriteAddr1) := writeDataReg
     }
@@ -84,7 +94,10 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
 
   if (DecodeDelay == 1) {
     val readData2 = bankReadData2(bankReadSel2)
-    val readData3 = Reg(next = readData2)
+    val readData3 = Reg(UInt(width = WordSize))
+    when (io.readEn) {
+      readData3 := readData2
+    }
     io.readData := readData3
   } else {
     val bankReadDataStages = new Array[Vec[UInt]](DecodeDelay)
@@ -101,6 +114,11 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
       val nextWidth = lastWidth - BankSelSize
       val stageSize = lastStage.size / MaxFanIn
 
+      val nextSelReg = Reg(UInt(width = nextWidth))
+      when (io.readEn) {
+        nextSelReg := nextSel
+      }
+
       val curStage = Vec.fill(stageSize) {
         Reg(UInt(width = WordSize))
       }
@@ -108,16 +126,21 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
         val subBank = Vec.tabulate(MaxFanIn) {
           j => lastStage(i * MaxFanIn + j)
         }
-        curStage(i) := subBank(curSel)
+        when (io.readEn) {
+          curStage(i) := subBank(curSel)
+        }
       }
       bankReadDataStages(stage) = curStage
-      bankReadSelStages(stage) = (nextWidth, Reg(next = nextSel))
+      bankReadSelStages(stage) = (nextWidth, nextSelReg)
     }
 
     val finalStage = bankReadDataStages(DecodeDelay - 1)
     val finalSel = bankReadSelStages(DecodeDelay - 1)._2
     val readDataFin = finalStage(finalSel)
-    val readDataReg = Reg(next = readDataFin)
+    val readDataReg = Reg(UInt(width = WordSize))
+    when (io.readEn) {
+      readDataReg := readDataFin
+    }
     io.readData := readDataReg
   }
 }
@@ -136,6 +159,7 @@ class BankedMemTester(c: BankedMem) extends Tester(c) {
   }
   poke(c.io.writeEn, 0)
 
+  poke(c.io.readEn, 1)
   for (i <- 0 until MemReadDelay) {
     poke(c.io.readAddr, addrs(i))
     step(1)
@@ -146,6 +170,11 @@ class BankedMemTester(c: BankedMem) extends Tester(c) {
     poke(c.io.readAddr, addrs(i))
     step(1)
   }
+
+  poke(c.io.readEn, 0)
+  step(2)
+  expect(c.io.readData, values(NumTests - MemReadDelay))
+  poke(c.io.readEn, 1)
 
   for (i <- (NumTests - MemReadDelay) until NumTests) {
     expect(c.io.readData, values(i))
