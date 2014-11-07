@@ -2,11 +2,11 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
+import McAccel.Constants._
 
 class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val HashSize = log2Up(NumKeys)
   val AddrSize = log2Up(CacheSize)
-  val ReadDelay = 3
 
   val io = new Bundle {
     val hashIn = Decoupled(new HashSelection(HashSize, TagSize)).flip
@@ -56,7 +56,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val state = Reg(init = s_wait)
 
   val dataValid = Reg(init = Bool(false))
-  val delayedValid = ShiftRegister(dataValid, ReadDelay)
+  val delayedValid = ShiftRegister(dataValid, MemReadDelay)
 
   switch (state) {
     is (s_wait) {

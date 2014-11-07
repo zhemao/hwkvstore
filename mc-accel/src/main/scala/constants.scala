@@ -53,4 +53,6 @@ object Constants {
   val ActionSize = 1
 
   val HashNotFound = 0xffffff
+
+  val MemReadDelay = 4
 }

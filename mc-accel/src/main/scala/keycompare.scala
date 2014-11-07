@@ -2,6 +2,7 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
+import McAccel.Constants.MemReadDelay
 
 class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {
@@ -21,9 +22,9 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val findAvailable = Bool(INPUT)
   }
 
-  val ReadDelay = 3
+  val MemReadDelay = 4
   val index = Reg(UInt(width = KeyAddrSize))
-  val delayedIndex = ShiftRegister(index, ReadDelay)
+  val delayedIndex = ShiftRegister(index, MemReadDelay)
 
   val curInfo = Reg(new HashInfo(HashSize, KeyLenSize, TagSize))
   val checkFirst = Reg(Bool())
@@ -46,11 +47,11 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   }
 
   val (s_wait :: s_delay_len :: s_check_len ::
-    s_check_data :: s_handoff :: Nil) = Enum(UInt(), 5)
+    s_delay_data :: s_check_data :: s_handoff :: Nil) = Enum(UInt(), 6)
   val state = Reg(init = s_wait)
 
   val hashFound = Reg(Bool())
-  val delayCount = Reg(UInt(width = log2Up(ReadDelay)))
+  val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
 
   io.hashOut.bits.hash := curHash
   io.hashOut.bits.found := hashFound
@@ -76,8 +77,8 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         state := s_handoff
       } .elsewhen (io.lenData === curInfo.len) {
         index := UInt(0)
-        delayCount := UInt(ReadDelay)
-        state := s_check_data
+        delayCount := UInt(MemReadDelay - 1)
+        state := s_delay_data
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
         state := s_delay_len
@@ -85,11 +86,16 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         state := s_handoff
       }
     }
-    is (s_check_data) {
-      when (delayCount != UInt(0)) {
+    is (s_delay_data) {
+      when (delayCount === UInt(0)) {
+        state := s_check_data
+      } .otherwise {
         delayCount := delayCount - UInt(1)
         index := index + UInt(1)
-      } .elsewhen (io.curKeyData != io.allKeyData) {
+      }
+    }
+    is (s_check_data) {
+      when (io.curKeyData != io.allKeyData) {
         when (checkFirst) {
           checkFirst := Bool(false)
           state := s_delay_len
@@ -146,7 +152,7 @@ class KeyCompareSetup(
     val findAvailable = Bool(INPUT)
   }
 
-  val curKeyMem = Module(new BankedMem(WordSize, CurKeyWords / 2, 2))
+  val curKeyMem = Module(new UnbankedMem(WordSize, CurKeyWords))
   val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 

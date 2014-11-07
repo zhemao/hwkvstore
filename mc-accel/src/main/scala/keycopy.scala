@@ -1,13 +1,13 @@
 package McAccel
 
 import Chisel._
+import McAccel.Constants._
 
 class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val BytesPerWord = WordSize / 8
   val KeyLenSize = log2Up(KeySize)
   val WordShift = log2Up(WordSize) - 3
   val KeyAddrSize = KeyLenSize - WordShift
-  val ReadDelay = 3
 
   val io = new Bundle {
     val curKeyAddr = UInt(OUTPUT, KeyAddrSize)
@@ -31,8 +31,8 @@ class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val nextlen = Mux(len(KeyLenSize - 1, WordShift) === UInt(0),
     UInt(0), len - UInt(BytesPerWord))
 
-  val delayedWrite = ShiftRegister(write, ReadDelay)
-  val delayedIndex = ShiftRegister(index, ReadDelay)
+  val delayedWrite = ShiftRegister(write, MemReadDelay)
+  val delayedIndex = ShiftRegister(index, MemReadDelay)
 
   io.curKeyAddr := index
   io.allKeyAddr := Cat(hash, delayedIndex)
