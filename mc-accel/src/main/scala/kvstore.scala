@@ -169,7 +169,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
     wire_poke(c.io.resultData.ready, 1)
 
     for (ch <- value) {
-      expect(c.io.resultData.valid, 1)
+      until(peek(c.io.resultData.valid) == 1, 5) {}
       expect(c.io.resultData.bits, ch)
       takestep()
     }
