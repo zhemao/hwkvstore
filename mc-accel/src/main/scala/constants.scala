@@ -54,5 +54,5 @@ object Constants {
 
   val HashNotFound = 0xffffff
 
-  val MaxFanIn = 32
+  val MaxFanIn = 16
 }
