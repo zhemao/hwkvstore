@@ -4,22 +4,22 @@ vlsi-timestamp := build/vlsi/generated-src/timestamp
 
 TEST_FLAGS = --compile --genHarness --test --vcd --debug \
 	--targetDir build/emulator/generated-src \
-	--configInstance $(PROJ).$(CONFIG)
+	--configInstance $(PROJ).$(EMU_CONFIG)
 VLSI_COMPILE_FLAGS = --compile --genHarness --debug --backend v \
 	--targetDir $(VLSI_OUT_DIR) \
-	--configInstance $(PROJ).$(CONFIG) \
+	--configInstance $(PROJ).$(VLSI_CONFIG) \
 	--noInlineMem
 VLSI_RUN_FLAGS = --test --debug --backend v \
 	--targetDir build/vlsi/generated-src \
-	--configInstance $(PROJ).$(CONFIG)
+	--configInstance $(PROJ).$(VLSI_CONFIG)
 
 SCALA_SRC = src/main/scala/*.scala
 SRAMS = build/sram/*.conf
 
 $(vlsi-timestamp): $(SCALA_SRC) $(SRAMS)
 	sbt "run-main McAccel.PerfTestMain $(VLSI_COMPILE_FLAGS)"
-	$(vlsi_mem_gen) $(VLSI_OUT_DIR)/KeyValueStore.$(CONFIG).conf \
-		>> $(VLSI_OUT_DIR)/KeyValueStore.$(CONFIG).v
+	$(vlsi_mem_gen) $(VLSI_OUT_DIR)/KeyValueStore.$(VLSI_CONFIG).conf \
+		>> $(VLSI_OUT_DIR)/KeyValueStore.$(VLSI_CONFIG).v
 	date > $(vlsi-timestamp)
 
 vlsi: $(vlsi-timestamp)

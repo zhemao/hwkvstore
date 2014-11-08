@@ -2,7 +2,7 @@ package McAccel
 
 import Chisel._
 
-class DefaultConfig extends ChiselConfig {
+class BaseConfig extends ChiselConfig {
   private def isPowerOfTwo(num: Ex[Int], start: Int, end: Int) = {
     var expr: Ex[Boolean] = ExEq(num, ExLit(start))
     var check = 2 * start
@@ -26,9 +26,20 @@ class DefaultConfig extends ChiselConfig {
     ex => isPowerOfTwo(ex[Int]("numkeys"), 256, 1024),
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024)
   )
+}
+
+class VlsiConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
     case "wordsize" => 32
     case "numkeys" => 1024
     case "valcachesize" => 512 * 1024
+  }
+}
+
+class EmulatorConfig extends BaseConfig {
+  override val knobValues:Any=>Any = {
+    case "wordsize" => 32
+    case "numkeys" => 1024
+    case "valcachesize" => 256 * 1024
   }
 }

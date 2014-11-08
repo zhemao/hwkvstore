@@ -6,7 +6,7 @@
 
 icc_toplevel = $(TOP)
 icc_testharness = test
-icc_toplevelinst = KeyValueStore.$(CONFIG)
+icc_toplevelinst = KeyValueStore.$(VLSI_CONFIG)
 
 #--------------------------------------------------------------------
 # Build rules

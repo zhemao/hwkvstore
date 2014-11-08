@@ -1,5 +1,6 @@
 PROJ := McAccel
-CONFIG ?= DefaultConfig
+VLSI_CONFIG ?= VlsiConfig
+EMU_CONFIG ?= EmulatorConfig
 
 VLSI_OUT_DIR := build/vlsi/generated-src
 vlsi_mem_gen := build/sram/vlsi_mem_gen
