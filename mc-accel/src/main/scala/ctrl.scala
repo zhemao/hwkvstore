@@ -18,6 +18,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val addrLenWriteData = new AddrLenPair(ValAddrSize, OUTPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(OUTPUT) }
     val addrLenReadData = new AddrLenPair(ValAddrSize, INPUT)
+    val addrLenReadEn = Bool(OUTPUT)
 
     val keyLenAddr = UInt(OUTPUT, HashSize)
     val keyLenData = UInt(OUTPUT, KeyLenSize)
@@ -46,8 +47,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val (s_wait :: s_switch ::
     s_send_info :: s_stream_key :: s_gethash ::
     s_reskey_setlen :: s_reskey_start_copy :: s_reskey_end_copy ::
-    s_getaddrlen :: s_stream_value :: s_stream_value_finish ::
-    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 13)
+    s_waitaddrlen :: s_getaddrlen ::
+    s_stream_value :: s_stream_value_finish ::
+    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 14)
 
   val state = Reg(init = s_wait)
   val found_state = Reg(init = s_wait)
@@ -76,6 +78,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val addrLenData = Reg(new AddrLenPair(ValAddrSize))
   val setLen = Reg(init = Bits(width = 3))
 
+  io.addrLenReadEn := (state === s_waitaddrlen)
   io.addrLenAddr := hash
   io.addrLenWriteData := addrLenData
   io.addrLenWriteEn   := setLen(2, 1).toBools
@@ -99,6 +102,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   io.copyReq.valid := (state === s_reskey_start_copy)
 
   io.hashSel.ready := (state === s_gethash)
+
+  val AddrLookupDelay = 2
+  val delayCount = Reg(UInt(width = log2Up(AddrLookupDelay)))
 
   switch (state) {
     is (s_wait) {
@@ -144,7 +150,8 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
             action := CopyValueAction
             hash := io.rocc.cmd.bits.rs1(HashSize - 1, 0)
             readstart := io.rocc.cmd.bits.rs2
-            state := s_getaddrlen
+            state := s_waitaddrlen
+            delayCount := UInt(AddrLookupDelay - 1)
           }
         }
       }
@@ -206,6 +213,13 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
       setLen := Bits("b000")
       when (io.rocc.resp.ready) {
         state := s_wait
+      }
+    }
+    is (s_waitaddrlen) {
+      when (delayCount === UInt(0)) {
+        state := s_getaddrlen
+      } .otherwise {
+        delayCount := delayCount - UInt(1)
       }
     }
     is (s_getaddrlen) {

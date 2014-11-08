@@ -21,6 +21,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     val addrLenWriteData = new AddrLenPair(AddrSize, INPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
     val addrLenReadData = new AddrLenPair(AddrSize, OUTPUT)
+    val addrLenReadEn = Bool(INPUT)
   }
 
   val cacheMem = Module(new BankedMem(8, 256, CacheSize / 256))
@@ -37,28 +38,35 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   cacheMem.io.writeData := io.cacheWriteData
   cacheMem.io.writeEn   := io.cacheWriteEn
 
-  val addrTable = Mem(UInt(width = AddrSize), NumKeys, true)
-  val lenTable  = Mem(UInt(width = AddrSize), NumKeys, true)
   val addrLenAddr = Reg(UInt(width = HashSize))
+  val realAddrLenAddr = Mux(io.addrLenReadEn, io.addrLenAddr, addrLenAddr)
+
+  val addrTable = Module(new UnbankedMem(AddrSize, NumKeys))
+  addrTable.io.readAddr := realAddrLenAddr
+  addrTable.io.writeEn := io.addrLenWriteEn(0)
+  addrTable.io.writeData := io.addrLenWriteData.addr
+  addrTable.io.writeAddr := io.addrLenAddr
+
+  val lenTable  = Module(new UnbankedMem(AddrSize, NumKeys))
+  lenTable.io.readAddr := realAddrLenAddr
+  lenTable.io.writeEn := io.addrLenWriteEn(1)
+  lenTable.io.writeData := io.addrLenWriteData.len
+  lenTable.io.writeAddr := io.addrLenAddr
+
+  val AddrLookupDelay = 2
+
   val addrLenData = new AddrLenPair(AddrSize)
-  addrLenData.addr := addrTable(addrLenAddr)
-  addrLenData.len  := lenTable(addrLenAddr)
+  addrLenData.addr := addrTable.io.readData
+  addrLenData.len  := lenTable.io.readData
 
-  io.addrLenReadData.addr := addrTable(io.addrLenAddr)
-  io.addrLenReadData.len  := lenTable(io.addrLenAddr)
-
-  when (io.addrLenWriteEn(0)) {
-    addrTable(io.addrLenAddr) := io.addrLenWriteData.addr
-  }
-  when (io.addrLenWriteEn(1)) {
-    lenTable(io.addrLenAddr)  := io.addrLenWriteData.len
-  }
+  io.addrLenReadData.addr := addrTable.io.readData
+  io.addrLenReadData.len  := lenTable.io.readData
 
   val tag = Reg(UInt(width = TagSize))
   val len = Reg(UInt(width = AddrSize))
 
-  val (s_wait :: s_notfound :: s_lookup :: s_notify ::
-       s_delay :: s_stream :: Nil) = Enum(UInt(), 6)
+  val (s_wait :: s_notfound :: s_wait_lookup :: s_lookup :: s_notify ::
+       s_delay :: s_stream :: Nil) = Enum(UInt(), 7)
   val state = Reg(init = s_wait)
 
   val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
@@ -69,7 +77,8 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
         tag := io.hashIn.bits.tag
         when (io.hashIn.bits.found) {
           addrLenAddr := io.hashIn.bits.hash
-          state := s_lookup
+          state := s_wait_lookup
+          delayCount := UInt(AddrLookupDelay - 1)
         } .otherwise {
           len := UInt(0)
           state := s_notfound
@@ -79,6 +88,13 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     is (s_notfound) {
       when (io.resultInfo.ready) {
         state := s_wait
+      }
+    }
+    is (s_wait_lookup) {
+      when (delayCount === UInt(0)) {
+        state := s_lookup
+      } .otherwise {
+        delayCount := delayCount - UInt(1)
       }
     }
     is (s_lookup) {
@@ -156,7 +172,7 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
   poke(c.io.hashIn.valid, 0)
 
   poke(c.io.resultInfo.ready, 1)
-  step(1)
+  step(c.AddrLookupDelay + 1)
 
   expect(c.io.resultInfo.valid, 1)
   expect(c.io.resultInfo.bits.tag, 0)

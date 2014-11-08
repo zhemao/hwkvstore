@@ -54,6 +54,7 @@ class KeyValueStore extends Module {
   ctrl.io.addrLenWriteData <> lookup.io.addrLenWriteData
   ctrl.io.addrLenWriteEn   <> lookup.io.addrLenWriteEn
   ctrl.io.addrLenReadData  <> lookup.io.addrLenReadData
+  ctrl.io.addrLenReadEn    <> lookup.io.addrLenReadEn
   ctrl.io.lock      <> lookup.io.lock
   ctrl.io.halted    <> lookup.io.halted
   ctrl.io.writemode <> lookup.io.writemode
@@ -85,12 +86,14 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   memory.store_data(0, keyWords)
   memory.store_data(256, valueWords)
 
+  println("Switching to write mode")
   val writeMode = TestInst(0, 0, 1, 0, false, false, false)
   Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
 
   until (Cmd_IHandler.isIdle && !isBusy, 10) {}
   expect(c.io.writeready, 1)
 
+  println("Testing delete key")
   val delKey = TestInst(1, 0, 1, 2, true, true, true)
   Cmd_IHandler.inputs.enqueue(TestCmd(delKey, 0, key.length))
 
@@ -107,6 +110,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   val HashBytes = (c.HashSize - 1) / 8 + 1
   val hash = computeHash(pearsonRomValues1, key, HashBytes) % c.NumKeys
 
+  println("Reserving key")
   val resKey = TestInst(2, 0, 1, 2, true, true, true)
   Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
 
@@ -118,6 +122,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   resp = Resp_OHandler.outputs.dequeue()
   assert(resp.data == hash, s"Expected ${hash} instead got ${resp.data}")
 
+  println("Writing value")
   val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
   val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
   val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
@@ -177,7 +182,9 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
     wire_poke(c.io.resultData.ready, 0)
   }
 
+  println("Streaming in key")
   streamCurKey(key, 0)
+  println("Reading out value")
   checkResult(value, 0)
 }
 

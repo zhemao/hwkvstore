@@ -41,6 +41,7 @@ class LookupPipeline(
     val addrLenWriteData = new AddrLenPair(ValAddrSize, INPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
     val addrLenReadData = new AddrLenPair(ValAddrSize, OUTPUT)
+    val addrLenReadEn = Bool(INPUT)
 
     val keyLenAddr = UInt(INPUT, HashSize)
     val keyLenData = UInt(INPUT, KeyLenSize)
@@ -117,6 +118,7 @@ class LookupPipeline(
   valcache.io.addrLenWriteData <> io.addrLenWriteData
   valcache.io.addrLenWriteEn   <> io.addrLenWriteEn
   valcache.io.addrLenReadData  <> io.addrLenReadData
+  valcache.io.addrLenReadEn    <> io.addrLenReadEn
 
   keycompare.io.hashOut.ready := Mux(io.writemode,
     io.hashSel.ready, valcache.io.hashIn.ready)
