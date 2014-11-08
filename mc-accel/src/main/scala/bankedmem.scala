@@ -69,12 +69,14 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
   val bankWriteSel0  = io.writeAddr(FullAddrSize - 1, BankAddrSize)
   val bankWriteAddr1 = Reg(next = bankWriteAddr0)
   val bankWriteSel1  = Reg(next = bankWriteSel0)
+  val bankWriteAddr2 = Reg(next = bankWriteAddr1)
 
   val writeDataReg = Reg(next = io.writeData)
   val writeEnReg   = Reg(next = io.writeEn)
 
+  val bankWriteData = Reg(next = writeDataReg)
   val bankWriteEn = Vec((0 until NumBanks).map {
-    i => writeEnReg && bankWriteSel1 === UInt(i)
+    i => Reg(next = writeEnReg && bankWriteSel1 === UInt(i))
   })
 
   val banks = Array.fill(NumBanks) {
@@ -88,7 +90,7 @@ class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
       bankReadData2(i) := bank(bankReadAddr1)
     }
     when (bankWriteEn(i)) {
-      bank(bankWriteAddr1) := writeDataReg
+      bank(bankWriteAddr2) := bankWriteData
     }
   }
 
