@@ -1,0 +1,62 @@
+switchMode
+    funct7 = 0
+    rd = 0
+    rs1 = 1 if write mode, 0 if read mode
+    rs2 = 0
+    xd = 0
+    xs1 = 0
+    xs2 = 0
+
+    Note: You must switch to write mode before using any of the other
+    instructions. You must switch the accelerator back to read mode if
+    you want it to continue serving traffic.
+
+delKey
+    funct7 = 1
+    rd = returns hash value or 0xffffff if not found
+    rs1 = register containing address
+    rs2 = register containing length
+    xd = 1
+    xs1 = 1
+    xs2 = 1
+
+reserveKey
+    funct7 = 2
+    rd = returns hash value or 0xffffff if no space available
+    rs1 = register containing address
+    rs2 = register containing length
+    xd = 1
+    xs1 = 1
+    xs2 = 1
+
+assocAddr
+    funct7 = 3
+    rd = 0
+    rs1 = register containing hash value
+    rs2 = register containing address (in accelerator SRAM)
+    xd = 0
+    xs1 = 1
+    xs2 = 1
+
+    Note: Use the hash value obtained from reserveKey.
+
+assocLen
+    funct7 = 4
+    rd = 0
+    rs1 = register containing hash value
+    rs2 = register containing length
+    xd = 0
+    xs1 = 1
+    xs2 = 1
+
+writeVal
+    funct7 = 5
+    rd = 0
+    rs1 = register containing hash value
+    rs2 = register containing start address (in CPU mem)
+    xd = 0
+    xs1 = 1
+    xs2 = 1
+
+    Note: You must set up the address and length first using assocAddr
+    and assocLen.
