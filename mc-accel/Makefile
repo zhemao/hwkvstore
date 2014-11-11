@@ -62,3 +62,6 @@ lookup-vlsi:
 
 dc-syn: $(vlsi-timestamp)
 	make -C build/vlsi/dc-syn SHELL=/bin/bash
+
+icc-par: $(vlsi-timestamp)
+	make -C build/vlsi/icc-par SHELL=/bin/bash
