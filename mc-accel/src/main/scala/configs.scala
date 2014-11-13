@@ -23,7 +23,7 @@ class BaseConfig extends ChiselConfig {
   }
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
     ex => isPowerOfTwo(ex[Int]("wordsize"), 8, 64),
-    ex => isPowerOfTwo(ex[Int]("numkeys"), 256, 1024),
+    ex => isPowerOfTwo(ex[Int]("numkeys"), 128, 1024),
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024)
   )
 }
@@ -31,8 +31,8 @@ class BaseConfig extends ChiselConfig {
 class VlsiConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
     case "wordsize" => 32
-    case "numkeys" => 1024
-    case "valcachesize" => 512 * 1024
+    case "numkeys" => 128
+    case "valcachesize" => 64 * 1024
   }
 }
 

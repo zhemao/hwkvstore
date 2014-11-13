@@ -16,7 +16,7 @@ VLSI_RUN_FLAGS = --test --debug --backend v \
 SCALA_SRC = src/main/scala/*.scala
 SRAMS = build/sram/*.conf
 
-$(vlsi-timestamp): $(SCALA_SRC) $(SRAMS)
+$(vlsi-timestamp): $(SCALA_SRC) $(SRAMS) $(vlsi_mem_gen)
 	sbt "run-main McAccel.PerfTestMain $(VLSI_COMPILE_FLAGS)"
 	$(vlsi_mem_gen) $(VLSI_OUT_DIR)/KeyValueStore.$(VLSI_CONFIG).conf \
 		>> $(VLSI_OUT_DIR)/KeyValueStore.$(VLSI_CONFIG).v
