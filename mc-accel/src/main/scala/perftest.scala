@@ -10,6 +10,8 @@ import scala.collection.mutable.Queue
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+class OutOfSpaceException extends Exception("No more space in value cache.")
+
 class KeyValueChecker(
     keyInfo: Queue[String],
     keyData: Queue[Char],
@@ -44,14 +46,17 @@ class KeyValueChecker(
       if (!resultInfo.isEmpty) {
         println(s"Receiving result for ${recvIndex}")
         actualLen = resultInfo.dequeue()
-        val expectedLen = kvPairs(requests(recvIndex)).length
-        if (actualLen != expectedLen) {
-          println(s"Wrong size for ${recvIndex}: got ${actualLen}, expected ${expectedLen}")
-        }
+        val key = requests(recvIndex)
+        val expectedLen = kvPairs(key).length
+
         if (actualLen == 0) {
+          println(s"Cache miss on key ${recvIndex}: ${key}")
           misses += 1
           recvIndex += 1
+        } else if (actualLen != expectedLen) {
+          println(s"Wrong size for ${recvIndex}: got ${actualLen}, expected ${expectedLen}")
         }
+
         if (sendIndex < requests.length) {
           sendKey(requests(sendIndex))
           sendIndex += 1
@@ -125,7 +130,7 @@ class PerfTest(
 
   var valueAddr = 0
 
-  def assocKey(key: String, value: String) {
+  def assocKey(key: String, value: String): Boolean = {
     val keyWords = messToWords(key, 8)
     val valWords = messToWords(value, 8)
     val valStart = keyWords.length * 8
@@ -143,33 +148,43 @@ class PerfTest(
     var hash = resp.data
 
     if (hash == HashNotFound) {
-      throw new Exception("Nowhere to put %s".format(key))
-    }
+      false
+    } else if (valueAddr + value.length > c.ValCacheSize) {
+      throw new OutOfSpaceException
+    } else {
+      val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
+      val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
+      val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
 
-    val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
-    val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
-    val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
+      Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, valueAddr))
+      Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
+      Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, valStart))
 
-    Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, valueAddr))
-    Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
-    Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, valStart))
+      until (Cmd_IHandler.isIdle && !isBusy, 4 * value.length + 50) {
+        memory.process()
+      }
 
-    until (Cmd_IHandler.isIdle && !isBusy, 4 * value.length + 50) {
-      memory.process()
-    }
-
-    valueAddr += value.length
-
-    if (valueAddr > c.ValCacheSize) {
-      throw new Exception("Ran out of space")
+      valueAddr += value.length
+      true
     }
   }
 
   switchMode(true)
 
+  var keysAdded = 0
+
   println("Setting keys")
-  for ((key, value) <- kvPairs) {
-    assocKey(key, value)
+  try {
+    for ((key, value) <- kvPairs) {
+      if (assocKey(key, value)) {
+        keysAdded += 1
+      } else {
+        println("Failed to add key %s".format(key))
+      }
+    }
+  } catch {
+    case e: OutOfSpaceException =>
+      println("Ran out of space after %d keys".format(keysAdded))
   }
 
   switchMode(false)
@@ -182,6 +197,7 @@ class PerfTest(
   }
   val run_cycles = cycles - start_cycles
   println(s"Processed ${requests.length} requests in ${run_cycles} cycles")
+  println(s"Missed requests: ${kvChecker.misses}")
 }
 
 object PerfTestMain {
