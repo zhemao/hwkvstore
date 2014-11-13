@@ -39,7 +39,7 @@ class VlsiConfig extends BaseConfig {
 class EmulatorConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
     case "wordsize" => 32
-    case "numkeys" => 1024
-    case "valcachesize" => 256 * 1024
+    case "numkeys" => 256
+    case "valcachesize" => 128 * 1024
   }
 }
