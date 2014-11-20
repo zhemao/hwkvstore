@@ -1,6 +1,7 @@
 PROJ := McAccel
 VLSI_CONFIG ?= VlsiConfig
 EMU_CONFIG ?= EmulatorConfig
+FPGA_CONFIG ?= FpgaConfig
 
 VLSI_OUT_DIR := build/vlsi/generated-src
 vlsi_mem_gen := build/sram/vlsi_mem_gen

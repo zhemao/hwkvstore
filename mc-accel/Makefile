@@ -1,6 +1,7 @@
 include Makefrag
 
 vlsi-timestamp := build/vlsi/generated-src/timestamp
+fpga-timestamp := build/fpga/generated-src/timestamp
 
 TEST_FLAGS = --compile --genHarness --test --vcd --debug \
 	--targetDir build/emulator/generated-src \
@@ -12,9 +13,17 @@ VLSI_COMPILE_FLAGS = --compile --genHarness --debug --backend v \
 VLSI_RUN_FLAGS = --test --debug --backend v \
 	--targetDir build/vlsi/generated-src \
 	--configInstance $(PROJ).$(VLSI_CONFIG)
+FPGA_COMPILE_FLAGS = --compile --backend fpga \
+	--targetDir build/fpga/generated-src \
+	--configInstance $(PROJ).$(FPGA_CONFIG)
 
 SCALA_SRC = src/main/scala/*.scala
 SRAMS = build/sram/*.conf
+
+$(fpga-timestamp): $(SCALA_SRC)
+	sbt "run-main McAccel.KeyValueStoreMain $(FPGA_COMPILE_FLAGS)"
+
+fpga: $(fpga-timestamp)
 
 $(vlsi-timestamp): $(SCALA_SRC) $(SRAMS) $(vlsi_mem_gen)
 	sbt "run-main McAccel.PerfTestMain $(VLSI_COMPILE_FLAGS)"

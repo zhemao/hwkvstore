@@ -54,3 +54,14 @@ class EmulatorConfig extends BaseConfig {
     case "banksize" => 1024
   }
 }
+
+class FpgaConfig extends BaseConfig {
+  override val knobValues:Any=>Any = {
+    case "wordsize" => 32
+    case "numkeys" => 1024
+    case "valcachesize" => 512 * 1024
+    case "maxfanin" => 32
+    case "bankmems" => false
+    case "banksize" => 1024
+  }
+}
