@@ -14,6 +14,7 @@ class LookupPipeline(
   val HashSize = log2Up(NumKeys)
   val KeyLenSize = log2Up(KeySize)
   val ValAddrSize = log2Up(ValCacheSize)
+  val BankMems = params[Boolean]("bankmems")
 
   val io = new Bundle {
     val lock = Bool(INPUT)
@@ -74,7 +75,11 @@ class LookupPipeline(
   keycopy.io.copyReq <> io.copyReq
 
   val curKeyMem = Module(new UnbankedMem(WordSize, CurKeyWords * 2))
-  val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
+  val allKeyMem = if (BankMems) {
+    Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
+  } else {
+    Module(new UnbankedMem(WordSize, CurKeyWords * NumKeys))
+  }
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys, true)
 
   val swapped = Reg(init = Bool(false))
@@ -309,9 +314,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
 object LookupPipelineMain {
   def main(args: Array[String]) {
-    chiselMainTest(args,
-      () => Module(new LookupPipeline(32, 256, 32, 1024, 4))) {
-      c => new LookupPipelineTest(c)
-    }
+    chiselMain.run(args, () => new LookupPipeline(32, 256, 32, 1024, 4),
+      (c: LookupPipeline) => new LookupPipelineTest(c))
   }
 }

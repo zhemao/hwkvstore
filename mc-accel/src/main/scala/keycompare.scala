@@ -2,7 +2,6 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
-import McAccel.Constants.MaxFanIn
 
 class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {
@@ -22,7 +21,10 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val findAvailable = Bool(INPUT)
   }
 
-  val DecodeDelay = (HashSize - 1) / log2Up(MaxFanIn) + 1
+  val MaxFanIn = params[Int]("maxfanin")
+  val BankMems = params[Boolean]("bankmems")
+
+  val DecodeDelay = if (BankMems) (HashSize - 1) / log2Up(MaxFanIn) + 1 else 0
   val AllReadDelay = 2 + DecodeDelay
   val curKeyData = ShiftRegister(io.curKeyData, DecodeDelay)
 
@@ -155,8 +157,13 @@ class KeyCompareSetup(
     val findAvailable = Bool(INPUT)
   }
 
+  val BankMems = params[Boolean]("bankmems")
   val curKeyMem = Module(new UnbankedMem(WordSize, CurKeyWords))
-  val allKeyMem = Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
+  val allKeyMem = if (BankMems) {
+    Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
+  } else {
+    Module(new UnbankedMem(WordSize, CurKeyWords * NumKeys))
+  }
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
   val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize, TagSize))
@@ -291,8 +298,7 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
 
 object KeyCompareMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new KeyCompareSetup(32, 256, 8, 4))) {
-      c => new KeyCompareTest(c)
-    }
+    chiselMain.run(args, () => new KeyCompareSetup(32, 256, 8, 4),
+      (c: KeyCompareSetup) => new KeyCompareTest(c))
   }
 }

@@ -2,10 +2,11 @@ package McAccel
 
 import Chisel._
 import McAccel.TestUtils._
-import McAccel.Constants.MaxFanIn
 
-class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
+abstract class DelayedMem(val WordSize: Int, val MemSize: Int)
+    extends Module {
   val AddrSize = log2Up(MemSize)
+  val ReadDelay: Int
   val io = new Bundle {
     val readAddr = UInt(INPUT, AddrSize)
     val readData = UInt(OUTPUT, WordSize)
@@ -15,7 +16,12 @@ class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
     val writeData = UInt(INPUT, WordSize)
     val writeEn   = Bool(INPUT)
   }
+}
 
+class UnbankedMem(WordSize: Int, MemSize: Int)
+    extends DelayedMem(WordSize, MemSize) {
+
+  val ReadDelay = 2
   val readAddrReg  = Reg(next = io.readAddr)
   val writeAddrReg = Reg(next = io.writeAddr)
   val writeDataReg = Reg(next = io.writeData)
@@ -32,26 +38,18 @@ class UnbankedMem(val WordSize: Int, val MemSize: Int) extends Module {
   }
 }
 
-class BankedMem(val WordSize: Int, val BankSize: Int, val NumBanks: Int)
-    extends Module {
-  val TotalSize = BankSize * NumBanks
+class BankedMem(WordSize: Int, val BankSize: Int, val NumBanks: Int)
+    extends DelayedMem(WordSize, BankSize * NumBanks) {
+  val TotalSize = MemSize
+  val MaxFanIn = params[Int]("maxfanin")
 
   val FullAddrSize = log2Up(TotalSize)
   val BankAddrSize = log2Up(BankSize)
 
-  val io = new Bundle {
-    val readAddr = UInt(INPUT, FullAddrSize)
-    val readData = UInt(OUTPUT, WordSize)
-    val readEn   = Bool(INPUT)
-
-    val writeAddr = UInt(INPUT, FullAddrSize)
-    val writeData = UInt(INPUT, WordSize)
-    val writeEn   = Bool(INPUT)
-  }
-
   val FullBankSelSize = FullAddrSize - BankAddrSize
   val BankSelSize = log2Up(MaxFanIn)
   val DecodeDelay = (FullBankSelSize - 1) / BankSelSize + 1
+  val ReadDelay = 2 + DecodeDelay
 
   val bankReadAddr0 = io.readAddr(BankAddrSize - 1, 0)
   val bankReadSel0  = io.readAddr(FullAddrSize - 1, BankAddrSize)
@@ -186,7 +184,7 @@ class BankedMemTester(c: BankedMem) extends Tester(c) {
 
 object BankedMemMain {
   def main(args: Array[String]) {
-    chiselMain(args, () => Module(new BankedMem(16, 128, 16)),
+    chiselMain.run(args, () => new BankedMem(16, 128, 16),
       (c: BankedMem) => new BankedMemTester(c))
   }
 }

@@ -24,7 +24,13 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
     val addrLenReadEn = Bool(INPUT)
   }
 
-  val cacheMem = Module(new BankedMem(8, 256, CacheSize / 256))
+  val BankMems = params[Boolean]("bankmems")
+
+  val cacheMem = if (BankMems) {
+    Module(new BankedMem(8, 256, CacheSize / 256))
+  } else {
+    Module(new UnbankedMem(8, CacheSize))
+  }
   val cacheAddr = Reg(UInt(width = AddrSize))
   val cacheData = cacheMem.io.readData
   val cacheReadEn = Reg(init = Bool(false))
@@ -32,7 +38,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   cacheMem.io.readAddr := cacheAddr
   cacheMem.io.readEn   := cacheReadEn
 
-  val MemReadDelay = cacheMem.DecodeDelay + 2
+  val MemReadDelay = cacheMem.ReadDelay
 
   cacheMem.io.writeAddr := io.cacheWriteAddr
   cacheMem.io.writeData := io.cacheWriteData
@@ -193,7 +199,7 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
 
 object ValueCacheMain {
   def main(args: Array[String]) {
-    chiselMain(args, () => Module(new ValueCache(256, 4096, 2)),
+    chiselMain.run(args, () => new ValueCache(256, 4096, 2),
       (c: ValueCache) => new ValueCacheTest(c))
   }
 }

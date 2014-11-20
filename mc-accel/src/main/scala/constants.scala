@@ -53,6 +53,4 @@ object Constants {
   val ActionSize = 1
 
   val HashNotFound = 0xffffff
-
-  val MaxFanIn = 16
 }

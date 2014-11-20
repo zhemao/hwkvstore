@@ -19,12 +19,15 @@ class BaseConfig extends ChiselConfig {
       case "numkeys"  => Knob("numkeys")
       case "valcachesize" => Knob("valcachesize")
       case "tagsize" => 16
+      case "maxfanin" => Knob("maxfanin")
+      case "bankmems" => Knob("bankmems")
     }
   }
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
     ex => isPowerOfTwo(ex[Int]("wordsize"), 8, 64),
     ex => isPowerOfTwo(ex[Int]("numkeys"), 128, 1024),
-    ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024)
+    ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024),
+    ex => isPowerOfTwo(ex[Int]("maxfanin"), 4, 32)
   )
 }
 
@@ -33,6 +36,8 @@ class VlsiConfig extends BaseConfig {
     case "wordsize" => 32
     case "numkeys" => 128
     case "valcachesize" => 64 * 1024
+    case "maxfanin" => 16
+    case "bankmems" => true
   }
 }
 
@@ -41,5 +46,7 @@ class EmulatorConfig extends BaseConfig {
     case "wordsize" => 32
     case "numkeys" => 256
     case "valcachesize" => 128 * 1024
+    case "maxfanin" => 32
+    case "bankmems" => false
   }
 }
