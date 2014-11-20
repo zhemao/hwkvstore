@@ -18,6 +18,7 @@ class BaseConfig extends ChiselConfig {
       case "keysize"  => 256
       case "numkeys"  => Knob("numkeys")
       case "valcachesize" => Knob("valcachesize")
+      case "banksize" => Knob("banksize")
       case "tagsize" => 16
       case "maxfanin" => Knob("maxfanin")
       case "bankmems" => Knob("bankmems")
@@ -27,7 +28,8 @@ class BaseConfig extends ChiselConfig {
     ex => isPowerOfTwo(ex[Int]("wordsize"), 8, 64),
     ex => isPowerOfTwo(ex[Int]("numkeys"), 128, 1024),
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024),
-    ex => isPowerOfTwo(ex[Int]("maxfanin"), 4, 32)
+    ex => isPowerOfTwo(ex[Int]("maxfanin"), 4, 32),
+    ex => isPowerOfTwo(ex[Int]("banksize"), 256, 1024)
   )
 }
 
@@ -38,6 +40,7 @@ class VlsiConfig extends BaseConfig {
     case "valcachesize" => 64 * 1024
     case "maxfanin" => 16
     case "bankmems" => true
+    case "banksize" => 256
   }
 }
 
@@ -47,6 +50,7 @@ class EmulatorConfig extends BaseConfig {
     case "numkeys" => 256
     case "valcachesize" => 128 * 1024
     case "maxfanin" => 32
-    case "bankmems" => false
+    case "bankmems" => true
+    case "banksize" => 1024
   }
 }

@@ -15,6 +15,7 @@ class LookupPipeline(
   val KeyLenSize = log2Up(KeySize)
   val ValAddrSize = log2Up(ValCacheSize)
   val BankMems = params[Boolean]("bankmems")
+  val BankSize = params[Int]("banksize")
 
   val io = new Bundle {
     val lock = Bool(INPUT)

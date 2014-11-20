@@ -25,9 +25,10 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   }
 
   val BankMems = params[Boolean]("bankmems")
+  val BankSize = params[Int]("banksize")
 
-  val cacheMem = if (BankMems) {
-    Module(new BankedMem(8, 256, CacheSize / 256))
+  val cacheMem = if (BankMems && BankSize != CacheSize) {
+    Module(new BankedMem(8, BankSize, CacheSize / BankSize))
   } else {
     Module(new UnbankedMem(8, CacheSize))
   }
