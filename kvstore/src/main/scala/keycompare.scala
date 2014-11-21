@@ -191,6 +191,7 @@ class KeyCompareSetup(
   curKeyMem.io.writeAddr := io.curKeyAddr
   curKeyMem.io.writeData := io.curKeyData
   curKeyMem.io.writeEn   := io.curKeyWrite
+  curKeyMem.io.readEn    := Bool(true)
 
   allKeyMem.io.writeAddr := io.allKeyAddr
   allKeyMem.io.writeData := io.allKeyData

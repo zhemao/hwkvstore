@@ -136,6 +136,7 @@ class HasherWriterSetup(val HashSize: Int, val WordSize: Int,
   hw.io.keyWriteData <> mem.io.writeData
 
   mem.io.readAddr := io.keyReadAddr
+  mem.io.readEn := Bool(true)
   io.keyReadData := mem.io.readData
 }
 

@@ -90,6 +90,7 @@ class LookupPipeline(
   val hwWriteAddr = Cat(swapped, hasherwriter.io.keyWriteAddr)
 
   curKeyMem.io.readAddr  := curReadAddrExt
+  curKeyMem.io.readEn    := Bool(true)
   curKeyMem.io.writeAddr := hwWriteAddr
   curKeyMem.io.writeData := hasherwriter.io.keyWriteData
   curKeyMem.io.writeEn   := hasherwriter.io.keyWrite

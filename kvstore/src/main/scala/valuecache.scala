@@ -53,12 +53,14 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   addrTable.io.writeEn := io.addrLenWriteEn(0)
   addrTable.io.writeData := io.addrLenWriteData.addr
   addrTable.io.writeAddr := io.addrLenAddr
+  addrTable.io.readEn := Bool(true)
 
   val lenTable  = Module(new UnbankedMem(AddrSize, NumKeys))
   lenTable.io.readAddr := realAddrLenAddr
   lenTable.io.writeEn := io.addrLenWriteEn(1)
   lenTable.io.writeData := io.addrLenWriteData.len
   lenTable.io.writeAddr := io.addrLenAddr
+  lenTable.io.readEn := Bool(true)
 
   val AddrLookupDelay = 2
 
