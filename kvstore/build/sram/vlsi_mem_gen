@@ -158,6 +158,8 @@ def gen_mem(name, width, depth, ports):
   mems[(128,16,1,1,0,False)] = ("sram128x16",16,16,1,False)
   mems[(128,8,1,1,0,False)] = ("sram128x8",8,8,1,False)
   mems[(64,32,1,1,0,False)]  = ("sram64x32",32,32,1,False)
+  mems[(64,15,1,1,0,False)]  = ("sram64x16",16,15,1,False)
+  mems[(64,8,1,1,0,False)]  = ("sram64x8",8,8,1,False)
 
   nr = len(readports)
   nw = len(writeports)
