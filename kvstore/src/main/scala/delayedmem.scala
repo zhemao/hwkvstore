@@ -22,7 +22,10 @@ class UnbankedMem(WordSize: Int, MemSize: Int)
     extends DelayedMem(WordSize, MemSize) {
 
   val ReadDelay = 2
-  val readAddrReg  = Reg(next = io.readAddr)
+  val readAddrReg  = Reg(UInt(width = AddrSize))
+  when (io.readEn) {
+    readAddrReg := io.readAddr
+  }
   val writeAddrReg = Reg(next = io.writeAddr)
   val writeDataReg = Reg(next = io.writeData)
   val writeEnReg   = Reg(next = io.writeEn)
@@ -30,8 +33,13 @@ class UnbankedMem(WordSize: Int, MemSize: Int)
   val mem = Mem(UInt(width = WordSize), MemSize, true)
 
   val readData = mem(readAddrReg)
+  val readDataReg = Reg(UInt(width = WordSize))
 
-  io.readData := Reg(next = readData)
+  when (io.readEn) {
+    readDataReg := readData
+  }
+
+  io.readData := readDataReg
 
   when (writeEnReg) {
     mem(writeAddrReg) := writeDataReg
