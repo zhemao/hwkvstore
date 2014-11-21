@@ -184,8 +184,7 @@ class HasherWriterTest(c: HasherWriterSetup) extends Tester(c) {
 
 object HasherWriterMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new HasherWriterSetup(10, 8, 256, 4))) {
-      c => new HasherWriterTest(c)
-    }
+    chiselMain.run(args, () => new HasherWriterSetup(10, 8, 256, 4),
+      (c: HasherWriterSetup) => new HasherWriterTest(c))
   }
 }
