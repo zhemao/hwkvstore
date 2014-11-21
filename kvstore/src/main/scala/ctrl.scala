@@ -1,7 +1,7 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.Constants._
+import kvstore.Constants._
 
 class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     HashSize: Int, TagSize: Int) extends Module with CoreParameters {

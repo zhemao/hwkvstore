@@ -1,4 +1,4 @@
-package McAccel
+package kvstore
 
 import scala.util.Random
 

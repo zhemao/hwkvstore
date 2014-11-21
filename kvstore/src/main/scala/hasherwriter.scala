@@ -1,8 +1,8 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.TestUtils._
-import McAccel.Constants._
+import kvstore.TestUtils._
+import kvstore.Constants._
 
 class HasherWriter(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {

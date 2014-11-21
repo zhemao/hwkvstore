@@ -1,7 +1,7 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.TestUtils._
+import kvstore.TestUtils._
 
 class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     extends Module {

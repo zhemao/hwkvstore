@@ -1,7 +1,7 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.Constants._
+import kvstore.Constants._
 
 class KeyCopier(HashSize: Int, WordSize: Int, KeySize: Int) extends Module {
   val BytesPerWord = WordSize / 8

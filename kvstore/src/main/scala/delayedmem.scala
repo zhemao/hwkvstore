@@ -1,7 +1,7 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.TestUtils._
+import kvstore.TestUtils._
 
 abstract class DelayedMem(val WordSize: Int, val MemSize: Int)
     extends Module {

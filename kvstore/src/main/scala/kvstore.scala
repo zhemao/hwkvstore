@@ -1,9 +1,9 @@
-package McAccel
+package kvstore
 
 import Chisel._
 import Chisel.AdvTester._
-import McAccel.TestUtils._
-import McAccel.Constants._
+import kvstore.TestUtils._
+import kvstore.Constants._
 
 class KeyValueStore extends Module {
   val WordSize = params[Int]("wordsize")

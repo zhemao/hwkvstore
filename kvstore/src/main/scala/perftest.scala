@@ -1,9 +1,9 @@
-package McAccel
+package kvstore
 
 import Chisel._
 import Chisel.AdvTester._
-import McAccel.TestUtils._
-import McAccel.Constants._
+import kvstore.TestUtils._
+import kvstore.Constants._
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.Queue

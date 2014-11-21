@@ -1,8 +1,8 @@
-package McAccel
+package kvstore
 
 import Chisel._
-import McAccel.TestUtils._
-import McAccel.Constants._
+import kvstore.TestUtils._
+import kvstore.Constants._
 
 class LookupPipeline(
     val WordSize: Int, val KeySize: Int, val NumKeys: Int,

@@ -1,9 +1,9 @@
-package McAccel
+package kvstore
 
 import Chisel._
 import Chisel.AdvTester._
-import McAccel.Constants._
-import McAccel.TestUtils._
+import kvstore.Constants._
+import kvstore.TestUtils._
 
 class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
       extends Module with CoreParameters with MemoryOpConstants {

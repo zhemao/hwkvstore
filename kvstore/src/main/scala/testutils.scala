@@ -1,4 +1,4 @@
-package McAccel
+package kvstore
 
 import Chisel._
 

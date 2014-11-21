@@ -1,4 +1,4 @@
-PROJ := McAccel
+PROJ := kvstore
 VLSI_CONFIG ?= VlsiConfig
 EMU_CONFIG ?= EmulatorConfig
 FPGA_CONFIG ?= FpgaConfig
