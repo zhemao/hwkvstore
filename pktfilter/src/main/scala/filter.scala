@@ -21,40 +21,73 @@ class PacketFilter extends Module {
   }
 
   val curTag = Reg(init = UInt(0, TagSize))
+  val getReqLens = Mem(UInt(width = KeyLenSize), 1 << TagSize)
 
-  val pktCount = Reg(init = UInt(0, 16))
-  val pktLen   = Reg(init = UInt(0, 16))
-
+  val pktLen = Reg(init = UInt(0, 16))
   val keyLen = Reg(init = UInt(0, 16))
   val headerLen = Reg(init = UInt(0, 8))
   val lenOffset = Reg(UInt(width = 16))
   val protOffset = Reg(UInt(width = 16))
 
-  val writeData = Reg(init = UInt(0, 8))
-  val writeEn = Reg(init = Bool(false))
   val ignore = Reg(init = Bool(false))
 
   val (s_idle :: s_ihl :: s_tlh :: s_tll :: s_prot ::
     s_start_stream :: s_finish :: s_start_skip :: s_ip_end ::
     s_magic :: s_opcode :: s_keylen_h :: s_keylen_l :: s_xtralen ::
-    s_key_start :: Nil) = Enum(Bits(), 15)
+    s_key_info :: s_key_start :: s_pkt_defer :: 
+    s_keydata_send :: s_keydata_read :: s_keydata_last :: s_finish_defer ::
+    Nil) = Enum(Bits(), 21)
   val state = Reg(init = s_idle)
 
-  val buffer = Module(new PacketBuffer(BufferSize))
-  buffer.io.readData <> io.core
-  buffer.io.writeData := writeData
-  buffer.io.writeEn := writeEn
-  buffer.io.stream.bits := pktLen
-  buffer.io.stream.valid := (state === s_start_stream)
-  buffer.io.skip.bits := pktLen
-  buffer.io.skip.valid := (state === s_start_skip)
+  val mainWriter = StreamWriter(UInt(width = 8), 16)
+  mainWriter.io.stream <> io.temac
+  mainWriter.io.ignore := ignore
+
+  val pktCount = mainWriter.io.count
+  val writeData = mainWriter.io.writeData
+  val writeEn = mainWriter.io.writeEn
+
+  val mainBuffer = Module(new PacketBuffer(BufferSize))
+  mainBuffer.io.writeData := writeData
+  mainBuffer.io.writeEn := writeEn
+  mainBuffer.io.stream.valid := (state === s_start_stream)
+  mainBuffer.io.stream.bits := pktLen
+  mainBuffer.io.skip.valid := (state === s_start_skip)
+  mainBuffer.io.skip.bits := pktLen
 
   val rx_ready = (state != s_start_stream) && (state != s_start_skip) &&
-                 !buffer.io.full
+                 (state != s_key_info) && (state != s_pkt_defer) &&
+                 (state != s_keydata_send) && (state != s_keydata_last) &&
+                 !mainBuffer.io.full
+  mainWriter.io.enable := rx_ready
+
+  val deferWriter = StreamWriter(UInt(width = 8), 16)
+  deferWriter.io.ignore := Bool(false)
+
+  val deferBuffer = Module(new PacketBuffer(BufferSize))
+  deferBuffer.io.writeData := deferWriter.io.writeData
+  deferBuffer.io.writeEn := deferWriter.io.writeEn
+
+  deferWriter.io.enable := !deferBuffer.io.full
+
+  val sendDefer = Reg(init = Bool(false))
+
+  val streamMux = StreamMux(UInt(width = 8))
+  streamMux.io.in <> mainBuffer.io.readData
+  streamMux.io.out_a <> io.core
+  streamMux.io.out_b <> deferWriter.io.stream
+  streamMux.io.sel := sendDefer
+
+  io.keyInfo.bits.len := keyLen(KeyLenSize - 1, 0)
+  io.keyInfo.bits.tag := curTag
+  io.keyInfo.valid := (state === s_key_info)
+
+  io.keyData.bits := writeData
+  io.keyData.valid := (state === s_keydata_send) || (state === s_keydata_last)
 
   switch (state) {
     is (s_idle) {
-      when (io.temac.valid) {
+      when (io.temac.valid && !mainBuffer.io.full) {
         state := s_ihl
       }
     }
@@ -141,20 +174,59 @@ class PacketFilter extends Module {
     is (s_xtralen) {
       when (writeEn) {
         headerLen := headerLen + writeData
+        state := s_key_info
+      }
+    }
+    is (s_key_info) {
+      when (io.keyInfo.ready) {
+        getReqLens(curTag) := pktLen
+        curTag := curTag + UInt(1)
         state := s_key_start
       }
     }
     is (s_key_start) {
       when (pktCount === headerLen) {
+        sendDefer := Bool(true)
+        state := s_pkt_defer
+      }
+    }
+    is (s_pkt_defer) {
+      when (mainBuffer.io.stream.ready) {
+        state := s_keydata_send
+      }
+    }
+    is (s_keydata_send) {
+      when (io.keyData.ready) {
+        state := s_keydata_read
+      }
+    }
+    is (s_keydata_read) {
+      when (io.temac.valid) {
+        when (io.temac.last) {
+          state := s_keydata_last
+        } .otherwise {
+          state := s_keydata_send
+        }
+      }
+    }
+    is (s_keydata_last) {
+      when (io.keyData.ready) {
+        state := s_finish_defer
+      }
+    }
+    is (s_finish_defer) {
+      when (mainBuffer.io.stream.ready) {
+        sendDefer := Bool(false)
+        state := s_idle
       }
     }
     is (s_start_stream) {
-      when (buffer.io.stream.ready) {
+      when (mainBuffer.io.stream.ready) {
         state := s_finish
       }
     }
     is (s_start_skip) {
-      when (buffer.io.skip.ready) {
+      when (mainBuffer.io.skip.ready) {
         state := s_finish
       }
     }
@@ -165,23 +237,21 @@ class PacketFilter extends Module {
       }
     }
   }
-
-  io.temac.ready := rx_ready
-
-  when (io.temac.valid && rx_ready) {
-    writeEn := !ignore
-    writeData := io.temac.data
-    when (io.temac.last) {
-      pktCount := UInt(0)
-    } .otherwise {
-      pktCount := pktCount + UInt(1)
-    }
-  } .otherwise {
-    writeEn := Bool(false)
-  }
 }
 
 class PacketFilterTest(c: PacketFilter) extends Tester(c) {
+  def waitUntil(signal: Bool, timeout: Int) {
+    isTrace = false
+    var ticks = 0
+    while (ticks < timeout && peek(signal) != 1) {
+      step(1)
+      ticks += 1
+    }
+    isTrace = true
+    if (ticks == timeout)
+      println(s"Error: timed out after ${ticks} cycles")
+  }
+
   def sendPacket(packet: Array[Byte]) {
     poke(c.io.temac.valid, 1)
     for (i <- 0 until packet.size) {
@@ -192,10 +262,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
         poke(c.io.temac.last, 0)
       step(1)
 
-      isTrace = false
-      while (peek(c.io.temac.ready) != 1)
-        step(1)
-      isTrace = true
+      waitUntil(c.io.temac.ready, 10)
     }
     poke(c.io.temac.valid, 0)
   }
@@ -203,15 +270,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   def recvPacket(packet: Array[Byte]) {
     poke(c.io.core.ready, 1)
     for (i <- 0 until packet.size) {
-      isTrace = false
-      var ticker = 0
-      while (peek(c.io.core.valid) != 1 && ticker < 100) {
-        ticker += 1
-        step(1)
-      }
-      isTrace = true
+      waitUntil(c.io.core.valid, 100)
 
-      expect(c.io.core.valid, 1)
       expect(c.io.core.data, packet(i))
       if (i == packet.size - 1)
         expect(c.io.core.last, 1)
@@ -224,6 +284,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   val badPacket = Array[Byte](0, 0, 0, 0)
   val tcpPacket = IPv4Packet(TcpProtocol, Array[Byte](0, 1, 2, 3))
+  val udpPacket = IPv4Packet(UdpProtocol, Array[Byte](0, 1, 2, 3))
 
   println("Sending bad packet")
   sendPacket(badPacket)
@@ -233,6 +294,12 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   println("Receiving TCP packet")
   recvPacket(tcpPacket)
+
+  println("Sending UDP packet")
+  sendPacket(udpPacket)
+
+  println("Receiving UDP packet")
+  recvPacket(udpPacket)
 }
 
 object PacketFilterMain {

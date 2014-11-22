@@ -27,3 +27,19 @@ object IPv6Packet {
     header ++ data
   }
 }
+
+object MemcachedGet {
+  def apply(key: String, ipv6: Boolean = false): Array[Byte] = {
+    val header = Array.fill(24) { 0.toByte }
+    header(0) = 0x80.toByte
+    header(3) = key.length.toByte
+    header(11) = key.length.toByte
+
+    val data = header ++ key.getBytes
+
+    if (ipv6)
+      IPv6Packet(UdpProtocol, data)
+    else
+      IPv4Packet(UdpProtocol, data)
+  }
+}
