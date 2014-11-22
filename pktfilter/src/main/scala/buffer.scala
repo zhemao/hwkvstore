@@ -17,9 +17,9 @@ class PacketBuffer(BufferSize: Int) extends Module {
   }
 
   val mem = Mem(UInt(width = 8), BufferSize)
-  val writeHead   = Reg(init = UInt(0, AddrSize))
-  val readHead    = Reg(init = UInt(0, AddrSize))
-  val readCount   = Reg(init = UInt(0, AddrSize))
+  val writeHead = Reg(init = UInt(0, AddrSize))
+  val readHead  = Reg(init = UInt(0, AddrSize))
+  val readCount = Reg(init = UInt(0, AddrSize))
 
   val (r_wait :: r_send :: r_fetch :: r_skip :: Nil) = Enum(Bits(), 4)
   val state = Reg(init = r_wait)
@@ -28,7 +28,7 @@ class PacketBuffer(BufferSize: Int) extends Module {
   val readData = Reg(UInt(width = 8))
   val readLast = Reg(Bool())
 
-  val skipValid = (writeHead - readHead) >= readCount
+  val skipValid = Reg(next = (writeHead - readHead) >= readCount)
 
   switch (state) {
     is (r_wait) {
@@ -45,9 +45,9 @@ class PacketBuffer(BufferSize: Int) extends Module {
         when (readCount === UInt(0)) {
           state := r_wait
         } .otherwise {
-          readHead := readHead + UInt(1)
           state := r_fetch
         }
+        readHead := readHead + UInt(1)
       }
     }
     is (r_fetch) {
@@ -83,7 +83,7 @@ class PacketBuffer(BufferSize: Int) extends Module {
   }
 
   io.empty := (writeHead === readHead)
-  io.full := (writeHead - UInt(1) === readHead)
+  io.full := (writeHead + UInt(1) === readHead)
 }
 
 class PacketBufferTest(c: PacketBuffer) extends Tester(c) {
