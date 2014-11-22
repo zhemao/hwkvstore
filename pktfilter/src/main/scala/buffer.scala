@@ -28,7 +28,7 @@ class PacketBuffer(BufferSize: Int) extends Module {
   val readData = Reg(UInt(width = 8))
   val readLast = Reg(Bool())
 
-  val skipValid = (writeHead - readHead) < readCount
+  val skipValid = (writeHead - readHead) >= readCount
 
   switch (state) {
     is (r_wait) {
