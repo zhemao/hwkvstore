@@ -25,16 +25,19 @@ class PacketFilter extends Module {
   val pktCount = Reg(init = UInt(0, 16))
   val pktLen   = Reg(init = UInt(0, 16))
 
-  val headerLen = Reg(init = UInt(0, 6))
-  val udpCount = pktCount - headerLen
+  val keyLen = Reg(init = UInt(0, 16))
+  val headerLen = Reg(init = UInt(0, 8))
   val lenOffset = Reg(UInt(width = 16))
   val protOffset = Reg(UInt(width = 16))
 
   val writeData = Reg(init = UInt(0, 8))
   val writeEn = Reg(init = Bool(false))
+  val ignore = Reg(init = Bool(false))
 
   val (s_idle :: s_ihl :: s_tlh :: s_tll :: s_prot ::
-    s_start_stream :: s_finish :: s_start_skip :: Nil) = Enum(Bits(), 8)
+    s_start_stream :: s_finish :: s_start_skip :: s_ip_end ::
+    s_magic :: s_opcode :: s_keylen_h :: s_keylen_l :: s_xtralen ::
+    s_key_start :: Nil) = Enum(Bits(), 15)
   val state = Reg(init = s_idle)
 
   val buffer = Module(new PacketBuffer(BufferSize))
@@ -70,6 +73,12 @@ class PacketFilter extends Module {
         protOffset := UInt(IPv6ProtocolOffset + 1)
         state := s_tlh
       } .otherwise {
+        // if the version makes no sense
+        // ignore the rest of the packet
+        // and skip the byte we have already read
+        state := s_start_skip
+        pktLen := UInt(2)
+        ignore := Bool(true)
       }
     }
     is (s_tlh) {
@@ -79,7 +88,7 @@ class PacketFilter extends Module {
       }
     }
     is (s_tll) {
-      when (pktCount === lenOffset + UInt(1)) {
+      when (writeEn) {
         pktLen := Cat(pktLen(15, 8), writeData)
         state := s_prot
       }
@@ -87,9 +96,56 @@ class PacketFilter extends Module {
     is (s_prot) {
       when (pktCount === protOffset) {
         when (writeData === UInt(UdpProtocol)) {
+          state := s_ip_end
         } .otherwise {
           state := s_start_stream
         }
+      }
+    }
+    is (s_ip_end) {
+      when (pktCount === headerLen) {
+        headerLen := headerLen + UInt(24)
+        state := s_magic
+      }
+    }
+    is (s_magic) {
+      when (writeEn) {
+        when (writeData === UInt(MCMagic)) {
+          state := s_opcode
+        } .otherwise {
+          state := s_start_stream
+        }
+      }
+    }
+    is (s_opcode) {
+      when (writeEn) {
+        when (writeData === UInt(GetOpcode)) {
+          state := s_keylen_h
+        } .otherwise {
+          state := s_start_stream
+        }
+      }
+    }
+    is (s_keylen_h) {
+      when (writeEn) {
+        keyLen := Cat(writeData, UInt(0, 8))
+        state := s_keylen_l
+      }
+    }
+    is (s_keylen_l) {
+      when (writeEn) {
+        keyLen := Cat(keyLen(15, 8), writeData)
+        state := s_xtralen
+      }
+    }
+    is (s_xtralen) {
+      when (writeEn) {
+        headerLen := headerLen + writeData
+        state := s_key_start
+      }
+    }
+    is (s_key_start) {
+      when (pktCount === headerLen) {
       }
     }
     is (s_start_stream) {
@@ -104,6 +160,7 @@ class PacketFilter extends Module {
     }
     is (s_finish) {
       when (io.temac.valid && io.temac.last) {
+        ignore := Bool(false)
         state := s_idle
       }
     }
@@ -112,7 +169,7 @@ class PacketFilter extends Module {
   io.temac.ready := rx_ready
 
   when (io.temac.valid && rx_ready) {
-    writeEn := Bool(true)
+    writeEn := !ignore
     writeData := io.temac.data
     when (io.temac.last) {
       pktCount := UInt(0)
@@ -125,46 +182,57 @@ class PacketFilter extends Module {
 }
 
 class PacketFilterTest(c: PacketFilter) extends Tester(c) {
-  val packet = IPv4Packet(TcpProtocol, Array[Byte](0, 1, 2, 3))
-  var ind = 0
-
-  println("Sending packet")
-  poke(c.io.temac.valid, 1)
-  for (i <- 0 until packet.size) {
-    poke(c.io.temac.data, packet(i))
-    if (i == packet.size - 1)
-      poke(c.io.temac.last, 1)
-    else
-      poke(c.io.temac.last, 0)
-    step(1)
-
-    isTrace = false
-    while (peek(c.io.temac.ready) != 1)
+  def sendPacket(packet: Array[Byte]) {
+    poke(c.io.temac.valid, 1)
+    for (i <- 0 until packet.size) {
+      poke(c.io.temac.data, packet(i))
+      if (i == packet.size - 1)
+        poke(c.io.temac.last, 1)
+      else
+        poke(c.io.temac.last, 0)
       step(1)
-    isTrace = true
-  }
-  poke(c.io.temac.valid, 0)
 
-  println("Receiving packet")
-  poke(c.io.core.ready, 1)
-  for (i <- 0 until packet.size) {
-    isTrace = false
-    var ticker = 0
-    while (peek(c.io.core.valid) != 1 && ticker < 100) {
-      ticker += 1
+      isTrace = false
+      while (peek(c.io.temac.ready) != 1)
+        step(1)
+      isTrace = true
+    }
+    poke(c.io.temac.valid, 0)
+  }
+
+  def recvPacket(packet: Array[Byte]) {
+    poke(c.io.core.ready, 1)
+    for (i <- 0 until packet.size) {
+      isTrace = false
+      var ticker = 0
+      while (peek(c.io.core.valid) != 1 && ticker < 100) {
+        ticker += 1
+        step(1)
+      }
+      isTrace = true
+
+      expect(c.io.core.valid, 1)
+      expect(c.io.core.data, packet(i))
+      if (i == packet.size - 1)
+        expect(c.io.core.last, 1)
+      else
+        expect(c.io.core.last, 0)
       step(1)
     }
-    isTrace = true
-
-    expect(c.io.core.valid, 1)
-    expect(c.io.core.data, packet(i))
-    if (i == packet.size - 1)
-      expect(c.io.core.last, 1)
-    else
-      expect(c.io.core.last, 0)
-    step(1)
+    poke(c.io.core.ready, 0)
   }
-  poke(c.io.core.ready, 0)
+
+  val badPacket = Array[Byte](0, 0, 0, 0)
+  val tcpPacket = IPv4Packet(TcpProtocol, Array[Byte](0, 1, 2, 3))
+
+  println("Sending bad packet")
+  sendPacket(badPacket)
+
+  println("Sending TCP packet")
+  sendPacket(tcpPacket)
+
+  println("Receiving TCP packet")
+  recvPacket(tcpPacket)
 }
 
 object PacketFilterMain {
