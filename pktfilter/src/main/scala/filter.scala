@@ -12,8 +12,8 @@ class PacketFilter extends Module {
   val AddrSize = log2Up(BufferSize)
 
   val io = new Bundle {
-    val temac = Stream(UInt(width = 8)).flip
-    val core  = Stream(UInt(width = 8))
+    val temac_rx = Stream(UInt(width = 8)).flip
+    val core_rx  = Stream(UInt(width = 8))
     val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
     val resultInfo = Decoupled(new MessageInfo(ValLenSize, TagSize)).flip
@@ -42,10 +42,10 @@ class PacketFilter extends Module {
   val recvDefer = Reg(init = Bool(false))
   val streamMux = StreamMux(UInt(width = 8))
   streamMux.io.sel := recvDefer
-  streamMux.io.out <> io.core
+  streamMux.io.out <> io.core_rx
 
   val mainWriter = StreamWriter(UInt(width = 8), 16)
-  mainWriter.io.stream <> io.temac
+  mainWriter.io.stream <> io.temac_rx
   mainWriter.io.ignore := ignore
 
   val pktCount = mainWriter.io.count
@@ -95,7 +95,7 @@ class PacketFilter extends Module {
 
   switch (m_state) {
     is (m_idle) {
-      when (io.temac.valid && !mainBuffer.io.full && !recvDefer) {
+      when (io.temac_rx.valid && !mainBuffer.io.full && !recvDefer) {
         m_state := m_ihl
       }
     }
@@ -221,8 +221,8 @@ class PacketFilter extends Module {
       }
     }
     is (m_keydata_read) {
-      when (io.temac.valid) {
-        when (io.temac.last) {
+      when (io.temac_rx.valid) {
+        when (io.temac_rx.last) {
           m_state := m_keydata_last
         } .otherwise {
           m_state := m_keydata_send
@@ -251,7 +251,7 @@ class PacketFilter extends Module {
       }
     }
     is (m_finish) {
-      when (io.temac.valid && io.temac.last) {
+      when (io.temac_rx.valid && io.temac_rx.last) {
         ignore := Bool(false)
         m_state := m_idle
       }
@@ -332,7 +332,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   def sendPacket(packet: Array[Byte], key: String = null) {
     var keyind = 0
 
-    poke(c.io.temac.valid, 1)
+    poke(c.io.temac_rx.valid, 1)
     if (key != null) {
       poke(c.io.keyInfo.ready, 1)
       poke(c.io.keyData.ready, 1)
@@ -340,15 +340,15 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     for (i <- 0 until packet.size) {
       val byte = packet(i)
       val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
-      poke(c.io.temac.data, word)
+      poke(c.io.temac_rx.data, word)
       if (i == packet.size - 1)
-        poke(c.io.temac.last, 1)
+        poke(c.io.temac_rx.last, 1)
       else
-        poke(c.io.temac.last, 0)
+        poke(c.io.temac_rx.last, 0)
       step(1)
 
       var cycles = 10
-      while (cycles > 0 && peek(c.io.temac.ready) != 1) {
+      while (cycles > 0 && peek(c.io.temac_rx.ready) != 1) {
         if (key != null) {
           if (peek(c.io.keyInfo.valid) == 1) {
             expect(c.io.keyInfo.bits.len, key.size)
@@ -361,9 +361,9 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
         cycles -= 1
         step(1)
       }
-      waitUntil(c.io.temac.ready, 10)
+      waitUntil(c.io.temac_rx.ready, 10)
     }
-    poke(c.io.temac.valid, 0)
+    poke(c.io.temac_rx.valid, 0)
     if (key != null)
       assert(keyind == key.length, "Error: didn't finish reading key data")
     poke(c.io.keyData.ready, 0)
@@ -371,20 +371,20 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   }
 
   def recvPacket(packet: Array[Byte]) {
-    poke(c.io.core.ready, 1)
+    poke(c.io.core_rx.ready, 1)
     for (i <- 0 until packet.size) {
-      waitUntil(c.io.core.valid, 10)
+      waitUntil(c.io.core_rx.valid, 10)
 
       val byte = packet(i)
       val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
-      expect(c.io.core.data, word)
+      expect(c.io.core_rx.data, word)
       if (i == packet.size - 1)
-        expect(c.io.core.last, 1)
+        expect(c.io.core_rx.last, 1)
       else
-        expect(c.io.core.last, 0)
+        expect(c.io.core_rx.last, 0)
       step(1)
     }
-    poke(c.io.core.ready, 0)
+    poke(c.io.core_rx.ready, 0)
   }
 
   val badPacket = Array[Byte](0, 0, 0, 0)
@@ -406,7 +406,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   println("Sending memcached packet")
   sendPacket(mcPacket, mcKey)
 
-  waitUntil(c.io.temac.ready, 500)
+  waitUntil(c.io.temac_rx.ready, 500)
 
   println("Sending UDP packet")
   sendPacket(udpPacket)
