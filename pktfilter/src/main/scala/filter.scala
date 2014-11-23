@@ -22,21 +22,24 @@ class PacketFilter extends Module {
 
   val curTag = Reg(init = UInt(0, TagSize))
   val getReqLens = Mem(UInt(width = KeyLenSize), 1 << TagSize)
+  val getReqRoutes = Mem(new RoutingInfo, 1 << TagSize)
 
   val pktLen = Reg(init = UInt(0, 16))
   val keyLen = Reg(init = UInt(0, 16))
   val headerLen = Reg(init = UInt(0, 8))
   val lenOffset = Reg(UInt(width = 16))
-  val protOffset = Reg(UInt(width = 16))
+  //val protOffset = Reg(UInt(width = 16))
 
   val ignore = Reg(init = Bool(false))
 
   val (m_idle :: m_ihl :: m_tlh :: m_tll :: m_prot ::
-    m_start_stream :: m_finish :: m_start_skip :: m_ip_end :: m_udp_end ::
-    m_magic :: m_opcode :: m_keylen_h :: m_keylen_l :: m_xtralen ::
-    m_key_info :: m_key_start :: m_pkt_defer ::
-    m_keydata_send :: m_keydata_read :: m_keydata_last :: m_finish_defer ::
-    Nil) = Enum(Bits(), 22)
+    m_start_stream :: m_finish :: m_start_skip ::
+    m_srcaddr_start :: m_srcaddr :: m_dstaddr :: m_ip_end ::
+    m_srcport_h :: m_srcport_l :: m_dstport_h :: m_dstport_l :: m_udp_end ::
+    m_magic :: m_opcode :: m_keylen_h :: m_keylen_l :: rest) = Enum(Bits(), 29)
+  val (m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
+    m_keydata_send :: m_keydata_read :: m_keydata_last ::
+    m_finish_defer :: Nil) = rest
   val m_state = Reg(init = m_idle)
 
   val recvDefer = Reg(init = Bool(false))
@@ -92,6 +95,11 @@ class PacketFilter extends Module {
   io.keyData.valid := (m_state === m_keydata_send) || (m_state === m_keydata_last)
 
   val ipv6 = Reg(Bool())
+  val srcAddr = Reg(UInt(width = 32))
+  val dstAddr = Reg(UInt(width = 32))
+  val srcPort = Reg(UInt(width = 16))
+  val dstPort = Reg(UInt(width = 16))
+  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort)
 
   switch (m_state) {
     is (m_idle) {
@@ -105,14 +113,14 @@ class PacketFilter extends Module {
         // IPv4
         headerLen := Cat(writeData(3, 0), UInt(0, 2))
         lenOffset := UInt(IPv4LengthOffset + 1)
-        protOffset := UInt(IPv4ProtocolOffset + 1)
+        //protOffset := UInt(IPv4ProtocolOffset + 1)
         ipv6 := Bool(false)
         m_state := m_tlh
       } .elsewhen (version === UInt(6)) {
         // IPv6
         headerLen := UInt(40)
         lenOffset := UInt(IPv6LengthOffset + 1)
-        protOffset := UInt(IPv6ProtocolOffset + 1)
+        //protOffset := UInt(IPv6ProtocolOffset + 1)
         ipv6 := Bool(true)
         m_state := m_tlh
       } .otherwise {
@@ -141,17 +149,67 @@ class PacketFilter extends Module {
       }
     }
     is (m_prot) {
-      when (pktCount === protOffset) {
+      when (pktCount === UInt(IPv4ProtocolOffset + 1)) {
         when (writeData === UInt(UdpProtocol)) {
-          m_state := m_ip_end
+          m_state := m_srcaddr_start
         } .otherwise {
           m_state := m_start_stream
+        }
+      }
+    }
+    is (m_srcaddr_start) {
+      when (pktCount === UInt(IPv4SrcAddrOffset)) {
+        srcAddr := UInt(0)
+        m_state := m_srcaddr
+      }
+    }
+    is (m_srcaddr) {
+      when (writeEn) {
+        srcAddr := Cat(srcAddr(23, 0), writeData)
+        when (pktCount === UInt(IPv4DstAddrOffset)) {
+          dstAddr := UInt(0)
+          m_state := m_dstaddr
+        }
+      }
+    }
+    is (m_dstaddr) {
+      when (writeEn) {
+        dstAddr := Cat(dstAddr(23, 0), writeData)
+        when (pktCount === headerLen) {
+          headerLen := headerLen + UInt(8)
+          m_state := m_srcport_h
+        } .elsewhen (pktCount === UInt(IPv4OptionsOffset)) {
+          m_state := m_ip_end
         }
       }
     }
     is (m_ip_end) {
       when (pktCount === headerLen) {
         headerLen := headerLen + UInt(8)
+        m_state := m_srcport_h
+      }
+    }
+    is (m_srcport_h) {
+      when (writeEn) {
+        srcPort := Cat(writeData, UInt(0, 8))
+        m_state := m_srcport_l
+      }
+    }
+    is (m_srcport_l) {
+      when (writeEn) {
+        srcPort := Cat(srcPort(15, 8), writeData)
+        m_state := m_dstport_h
+      }
+    }
+    is (m_dstport_h) {
+      when (writeEn) {
+        dstPort := Cat(writeData, UInt(0, 8))
+        m_state := m_dstport_l
+      }
+    }
+    is (m_dstport_l) {
+      when (writeEn) {
+        dstPort := Cat(dstPort(15, 8), writeData)
         m_state := m_udp_end
       }
     }
@@ -193,6 +251,7 @@ class PacketFilter extends Module {
     }
     is (m_xtralen) {
       when (writeEn) {
+        getReqRoutes(curTag) := curRoute
         headerLen := headerLen + writeData
         m_state := m_key_info
       }
@@ -271,11 +330,12 @@ class PacketFilter extends Module {
   val d_state = Reg(init = d_idle)
   val resTag = Reg(UInt(width = TagSize))
   val resLen = Reg(UInt(width = KeyLenSize))
-  val deferPktLen = Reg(UInt(width = AddrSize))
+  val reqPktRoute = Reg(new RoutingInfo)
+  val reqPktLen = Reg(UInt(width = AddrSize))
 
-  deferBuffer.io.stream.bits := deferPktLen
+  deferBuffer.io.stream.bits := reqPktLen
   deferBuffer.io.stream.valid := (d_state === d_start)
-  deferBuffer.io.skip.bits := deferPktLen
+  deferBuffer.io.skip.bits := reqPktLen
 
   io.resultInfo.ready := (d_state === d_idle)
 
@@ -288,8 +348,9 @@ class PacketFilter extends Module {
       }
     }
     is (d_check) {
+      reqPktLen := getReqLens(resTag)
+      reqPktRoute := getReqRoutes(resTag)
       when (resLen === UInt(0)) {
-        deferPktLen := getReqLens(resTag)
         d_state := d_switch
       }
     }
@@ -387,12 +448,19 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     poke(c.io.core_rx.ready, 0)
   }
 
+  val srcAddr = Array[Byte](1, 2, 3, 4)
+  val srcPort = 0x1170
+  val dstAddr = Array[Byte](5, 6, 7, 8)
+  val dstPort = 0x1171
   val badPacket = Array[Byte](0, 0, 0, 0)
-  val tcpPacket = IPv4Packet(TcpProtocol, Array[Byte](0, 1, 2, 3))
-  val udpPacket = UdpPacket(Array[Byte](0, 1, 2, 3))
+  val tcpPacket = IPv4Packet(TcpProtocol, srcAddr, dstAddr,
+    Array[Byte](0, 1, 2, 3))
+  val udpPacket = UdpPacket(srcAddr, srcPort, dstAddr, dstPort,
+    Array[Byte](0, 1, 2, 3))
   val mcKey = "this is a key"
-  val mcPacket = MemcachedGet(mcKey)
-  val ipv6Packet = MemcachedGet(mcKey, ipv6 = true)
+  val mcPacket = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort, mcKey)
+  val ipv6Packet = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort,
+    mcKey, ipv6 = true)
 
   println("Sending bad packet")
   sendPacket(badPacket)

@@ -13,3 +13,22 @@ class StreamIO[+T <: Data](gen: T) extends Bundle {
 object Stream {
   def apply[T <: Data](gen: T): StreamIO[T] = new StreamIO(gen)
 }
+
+class RoutingInfo extends Bundle {
+  val srcAddr = UInt(width = 32)
+  val dstAddr = UInt(width = 32)
+  val srcPort = UInt(width = 16)
+  val dstPort = UInt(width = 16)
+}
+
+object RoutingInfo {
+  def apply(srcAddr: UInt, srcPort: UInt,
+      dstAddr: UInt, dstPort: UInt): RoutingInfo = {
+    val info = new RoutingInfo
+    info.srcAddr := srcAddr
+    info.srcPort := srcPort
+    info.dstAddr := dstAddr
+    info.dstPort := dstPort
+    info
+  }
+}
