@@ -91,6 +91,8 @@ class PacketFilter extends Module {
   io.keyData.bits := writeData
   io.keyData.valid := (m_state === m_keydata_send) || (m_state === m_keydata_last)
 
+  val ipv6 = Reg(Bool())
+
   switch (m_state) {
     is (m_idle) {
       when (io.temac.valid && !mainBuffer.io.full && !recvDefer) {
@@ -104,12 +106,14 @@ class PacketFilter extends Module {
         headerLen := Cat(writeData(3, 0), UInt(0, 2))
         lenOffset := UInt(IPv4LengthOffset + 1)
         protOffset := UInt(IPv4ProtocolOffset + 1)
+        ipv6 := Bool(false)
         m_state := m_tlh
       } .elsewhen (version === UInt(6)) {
         // IPv6
         headerLen := UInt(40)
         lenOffset := UInt(IPv6LengthOffset + 1)
         protOffset := UInt(IPv6ProtocolOffset + 1)
+        ipv6 := Bool(true)
         m_state := m_tlh
       } .otherwise {
         // if the version makes no sense
@@ -129,7 +133,11 @@ class PacketFilter extends Module {
     is (m_tll) {
       when (writeEn) {
         pktLen := Cat(pktLen(15, 8), writeData)
-        m_state := m_prot
+        when (ipv6) {
+          m_state := m_start_stream
+        } .otherwise {
+          m_state := m_prot
+        }
       }
     }
     is (m_prot) {
@@ -384,6 +392,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val udpPacket = UdpPacket(Array[Byte](0, 1, 2, 3))
   val mcKey = "this is a key"
   val mcPacket = MemcachedGet(mcKey)
+  val ipv6Packet = MemcachedGet(mcKey, ipv6 = true)
 
   println("Sending bad packet")
   sendPacket(badPacket)
@@ -414,6 +423,12 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   println("Receiving memcached packet")
   recvPacket(mcPacket)
+
+  println("Sending IPv6 packet")
+  sendPacket(ipv6Packet)
+
+  println("Receiving IPv6 packet")
+  recvPacket(ipv6Packet)
 }
 
 object PacketFilterMain {
