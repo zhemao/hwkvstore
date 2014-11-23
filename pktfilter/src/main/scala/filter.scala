@@ -32,11 +32,11 @@ class PacketFilter extends Module {
   val ignore = Reg(init = Bool(false))
 
   val (s_idle :: s_ihl :: s_tlh :: s_tll :: s_prot ::
-    s_start_stream :: s_finish :: s_start_skip :: s_ip_end ::
+    s_start_stream :: s_finish :: s_start_skip :: s_ip_end :: s_udp_end ::
     s_magic :: s_opcode :: s_keylen_h :: s_keylen_l :: s_xtralen ::
-    s_key_info :: s_key_start :: s_pkt_defer :: 
+    s_key_info :: s_key_start :: s_pkt_defer ::
     s_keydata_send :: s_keydata_read :: s_keydata_last :: s_finish_defer ::
-    Nil) = Enum(Bits(), 21)
+    Nil) = Enum(Bits(), 22)
   val state = Reg(init = s_idle)
 
   val mainWriter = StreamWriter(UInt(width = 8), 16)
@@ -50,7 +50,7 @@ class PacketFilter extends Module {
   val mainBuffer = Module(new PacketBuffer(BufferSize))
   mainBuffer.io.writeData := writeData
   mainBuffer.io.writeEn := writeEn
-  mainBuffer.io.stream.valid := (state === s_start_stream)
+  mainBuffer.io.stream.valid := (state === s_start_stream || state === s_pkt_defer)
   mainBuffer.io.stream.bits := pktLen
   mainBuffer.io.skip.valid := (state === s_start_skip)
   mainBuffer.io.skip.bits := pktLen
@@ -58,6 +58,7 @@ class PacketFilter extends Module {
   val rx_ready = (state != s_start_stream) && (state != s_start_skip) &&
                  (state != s_key_info) && (state != s_pkt_defer) &&
                  (state != s_keydata_send) && (state != s_keydata_last) &&
+                 (state != s_finish_defer) &&
                  !mainBuffer.io.full
   mainWriter.io.enable := rx_ready
 
@@ -136,6 +137,12 @@ class PacketFilter extends Module {
       }
     }
     is (s_ip_end) {
+      when (pktCount === headerLen) {
+        headerLen := headerLen + UInt(8)
+        state := s_udp_end
+      }
+    }
+    is (s_udp_end) {
       when (pktCount === headerLen) {
         headerLen := headerLen + UInt(24)
         state := s_magic
@@ -252,25 +259,51 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
       println(s"Error: timed out after ${ticks} cycles")
   }
 
-  def sendPacket(packet: Array[Byte]) {
+  def sendPacket(packet: Array[Byte], key: String = null) {
+    var keyind = 0
+
     poke(c.io.temac.valid, 1)
+    if (key != null) {
+      poke(c.io.keyInfo.ready, 1)
+      poke(c.io.keyData.ready, 1)
+    }
     for (i <- 0 until packet.size) {
-      poke(c.io.temac.data, packet(i))
+      val byte = packet(i)
+      val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
+      poke(c.io.temac.data, word)
       if (i == packet.size - 1)
         poke(c.io.temac.last, 1)
       else
         poke(c.io.temac.last, 0)
       step(1)
 
+      var cycles = 10
+      while (cycles > 0 && peek(c.io.temac.ready) != 1) {
+        if (key != null) {
+          if (peek(c.io.keyInfo.valid) == 1) {
+            expect(c.io.keyInfo.bits.len, key.size)
+          }
+          if (peek(c.io.keyData.valid) == 1) {
+            expect(c.io.keyData.bits, key(keyind))
+            keyind += 1
+          }
+        }
+        cycles -= 1
+        step(1)
+      }
       waitUntil(c.io.temac.ready, 10)
     }
     poke(c.io.temac.valid, 0)
+    if (key != null)
+      assert(keyind == key.length, "Error: didn't finish reading key data")
+    poke(c.io.keyData.ready, 0)
+    poke(c.io.keyInfo.ready, 0)
   }
 
   def recvPacket(packet: Array[Byte]) {
     poke(c.io.core.ready, 1)
     for (i <- 0 until packet.size) {
-      waitUntil(c.io.core.valid, 100)
+      waitUntil(c.io.core.valid, 10)
 
       expect(c.io.core.data, packet(i))
       if (i == packet.size - 1)
@@ -284,7 +317,9 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   val badPacket = Array[Byte](0, 0, 0, 0)
   val tcpPacket = IPv4Packet(TcpProtocol, Array[Byte](0, 1, 2, 3))
-  val udpPacket = IPv4Packet(UdpProtocol, Array[Byte](0, 1, 2, 3))
+  val udpPacket = UdpPacket(Array[Byte](0, 1, 2, 3))
+  val mcKey = "this is a key"
+  val mcPacket = MemcachedGet(mcKey)
 
   println("Sending bad packet")
   sendPacket(badPacket)
@@ -294,6 +329,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   println("Receiving TCP packet")
   recvPacket(tcpPacket)
+
+  println("Sending memcached packet")
+  sendPacket(mcPacket, mcKey)
+
+  waitUntil(c.io.temac.ready, 500)
 
   println("Sending UDP packet")
   sendPacket(udpPacket)

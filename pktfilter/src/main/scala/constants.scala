@@ -9,6 +9,6 @@ object Constants {
   val MCMagic = 0x80
   val GetOpcode = 0x00
 
-  val UdpProtocol = 0x11.toByte
-  val TcpProtocol = 0x6.toByte
+  val UdpProtocol = 0x11
+  val TcpProtocol = 0x6
 }
