@@ -2,7 +2,7 @@ package pktfilter
 
 import Chisel._
 
-class StreamMux[+T <: Data](gen: T) extends Module {
+class StreamSplit[+T <: Data](gen: T) extends Module {
   val io = new Bundle {
     val in = Stream(gen).flip
     val out_a = Stream(gen)
@@ -17,6 +17,27 @@ class StreamMux[+T <: Data](gen: T) extends Module {
   io.out_a.last := io.in.last && !io.sel
   io.out_b.last := io.in.last && io.sel
   io.in.ready := Mux(io.sel, io.out_b.ready, io.out_a.ready)
+}
+
+object StreamSplit {
+  def apply[T <: Data](gen: T): StreamSplit[T] = {
+    Module(new StreamSplit(gen))
+  }
+}
+
+class StreamMux[+T <: Data](gen: T) extends Module {
+  val io = new Bundle {
+    val in_a = Stream(gen).flip
+    val in_b = Stream(gen).flip
+    val out = Stream(gen)
+    val sel = Bool(INPUT)
+  }
+
+  io.out.data := Mux(io.sel, io.in_b.data, io.in_a.data)
+  io.out.last := Mux(io.sel, io.in_b.last, io.in_a.last)
+  io.out.valid := Mux(io.sel, io.in_b.valid, io.in_a.valid)
+  io.in_a.ready := io.out.ready && !io.sel
+  io.in_b.ready := io.out.ready && io.sel
 }
 
 object StreamMux {

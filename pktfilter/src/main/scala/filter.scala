@@ -31,13 +31,18 @@ class PacketFilter extends Module {
 
   val ignore = Reg(init = Bool(false))
 
-  val (s_idle :: s_ihl :: s_tlh :: s_tll :: s_prot ::
-    s_start_stream :: s_finish :: s_start_skip :: s_ip_end :: s_udp_end ::
-    s_magic :: s_opcode :: s_keylen_h :: s_keylen_l :: s_xtralen ::
-    s_key_info :: s_key_start :: s_pkt_defer ::
-    s_keydata_send :: s_keydata_read :: s_keydata_last :: s_finish_defer ::
+  val (m_idle :: m_ihl :: m_tlh :: m_tll :: m_prot ::
+    m_start_stream :: m_finish :: m_start_skip :: m_ip_end :: m_udp_end ::
+    m_magic :: m_opcode :: m_keylen_h :: m_keylen_l :: m_xtralen ::
+    m_key_info :: m_key_start :: m_pkt_defer ::
+    m_keydata_send :: m_keydata_read :: m_keydata_last :: m_finish_defer ::
     Nil) = Enum(Bits(), 22)
-  val state = Reg(init = s_idle)
+  val m_state = Reg(init = m_idle)
+
+  val recvDefer = Reg(init = Bool(false))
+  val streamMux = StreamMux(UInt(width = 8))
+  streamMux.io.sel := recvDefer
+  streamMux.io.out <> io.core
 
   val mainWriter = StreamWriter(UInt(width = 8), 16)
   mainWriter.io.stream <> io.temac
@@ -50,15 +55,15 @@ class PacketFilter extends Module {
   val mainBuffer = Module(new PacketBuffer(BufferSize))
   mainBuffer.io.writeData := writeData
   mainBuffer.io.writeEn := writeEn
-  mainBuffer.io.stream.valid := (state === s_start_stream || state === s_pkt_defer)
+  mainBuffer.io.stream.valid := (m_state === m_start_stream || m_state === m_pkt_defer)
   mainBuffer.io.stream.bits := pktLen
-  mainBuffer.io.skip.valid := (state === s_start_skip)
+  mainBuffer.io.skip.valid := (m_state === m_start_skip)
   mainBuffer.io.skip.bits := pktLen
 
-  val rx_ready = (state != s_start_stream) && (state != s_start_skip) &&
-                 (state != s_key_info) && (state != s_pkt_defer) &&
-                 (state != s_keydata_send) && (state != s_keydata_last) &&
-                 (state != s_finish_defer) &&
+  val rx_ready = (m_state != m_start_stream) && (m_state != m_start_skip) &&
+                 (m_state != m_key_info) && (m_state != m_pkt_defer) &&
+                 (m_state != m_keydata_send) && (m_state != m_keydata_last) &&
+                 (m_state != m_finish_defer) &&
                  !mainBuffer.io.full
   mainWriter.io.enable := rx_ready
 
@@ -66,181 +71,238 @@ class PacketFilter extends Module {
   deferWriter.io.ignore := Bool(false)
 
   val deferBuffer = Module(new PacketBuffer(BufferSize))
+  deferBuffer.io.readData <> streamMux.io.in_b
   deferBuffer.io.writeData := deferWriter.io.writeData
   deferBuffer.io.writeEn := deferWriter.io.writeEn
-
   deferWriter.io.enable := !deferBuffer.io.full
 
   val sendDefer = Reg(init = Bool(false))
 
-  val streamMux = StreamMux(UInt(width = 8))
-  streamMux.io.in <> mainBuffer.io.readData
-  streamMux.io.out_a <> io.core
-  streamMux.io.out_b <> deferWriter.io.stream
-  streamMux.io.sel := sendDefer
+  val streamSplit = StreamSplit(UInt(width = 8))
+  streamSplit.io.in <> mainBuffer.io.readData
+  streamSplit.io.out_a <> streamMux.io.in_a
+  streamSplit.io.out_b <> deferWriter.io.stream
+  streamSplit.io.sel := sendDefer
 
   io.keyInfo.bits.len := keyLen(KeyLenSize - 1, 0)
   io.keyInfo.bits.tag := curTag
-  io.keyInfo.valid := (state === s_key_info)
+  io.keyInfo.valid := (m_state === m_key_info)
 
   io.keyData.bits := writeData
-  io.keyData.valid := (state === s_keydata_send) || (state === s_keydata_last)
+  io.keyData.valid := (m_state === m_keydata_send) || (m_state === m_keydata_last)
 
-  switch (state) {
-    is (s_idle) {
-      when (io.temac.valid && !mainBuffer.io.full) {
-        state := s_ihl
+  switch (m_state) {
+    is (m_idle) {
+      when (io.temac.valid && !mainBuffer.io.full && !recvDefer) {
+        m_state := m_ihl
       }
     }
-    is (s_ihl) {
+    is (m_ihl) {
       val version = writeData(7, 4)
       when (version === UInt(4)) {
         // IPv4
         headerLen := Cat(writeData(3, 0), UInt(0, 2))
         lenOffset := UInt(IPv4LengthOffset + 1)
         protOffset := UInt(IPv4ProtocolOffset + 1)
-        state := s_tlh
+        m_state := m_tlh
       } .elsewhen (version === UInt(6)) {
         // IPv6
         headerLen := UInt(40)
         lenOffset := UInt(IPv6LengthOffset + 1)
         protOffset := UInt(IPv6ProtocolOffset + 1)
-        state := s_tlh
+        m_state := m_tlh
       } .otherwise {
         // if the version makes no sense
         // ignore the rest of the packet
         // and skip the byte we have already read
-        state := s_start_skip
+        m_state := m_start_skip
         pktLen := UInt(2)
         ignore := Bool(true)
       }
     }
-    is (s_tlh) {
+    is (m_tlh) {
       when (pktCount === lenOffset) {
         pktLen := Cat(writeData, UInt(0, 8))
-        state := s_tll
+        m_state := m_tll
       }
     }
-    is (s_tll) {
+    is (m_tll) {
       when (writeEn) {
         pktLen := Cat(pktLen(15, 8), writeData)
-        state := s_prot
+        m_state := m_prot
       }
     }
-    is (s_prot) {
+    is (m_prot) {
       when (pktCount === protOffset) {
         when (writeData === UInt(UdpProtocol)) {
-          state := s_ip_end
+          m_state := m_ip_end
         } .otherwise {
-          state := s_start_stream
+          m_state := m_start_stream
         }
       }
     }
-    is (s_ip_end) {
+    is (m_ip_end) {
       when (pktCount === headerLen) {
         headerLen := headerLen + UInt(8)
-        state := s_udp_end
+        m_state := m_udp_end
       }
     }
-    is (s_udp_end) {
+    is (m_udp_end) {
       when (pktCount === headerLen) {
         headerLen := headerLen + UInt(24)
-        state := s_magic
+        m_state := m_magic
       }
     }
-    is (s_magic) {
+    is (m_magic) {
       when (writeEn) {
         when (writeData === UInt(MCMagic)) {
-          state := s_opcode
+          m_state := m_opcode
         } .otherwise {
-          state := s_start_stream
+          m_state := m_start_stream
         }
       }
     }
-    is (s_opcode) {
+    is (m_opcode) {
       when (writeEn) {
         when (writeData === UInt(GetOpcode)) {
-          state := s_keylen_h
+          m_state := m_keylen_h
         } .otherwise {
-          state := s_start_stream
+          m_state := m_start_stream
         }
       }
     }
-    is (s_keylen_h) {
+    is (m_keylen_h) {
       when (writeEn) {
         keyLen := Cat(writeData, UInt(0, 8))
-        state := s_keylen_l
+        m_state := m_keylen_l
       }
     }
-    is (s_keylen_l) {
+    is (m_keylen_l) {
       when (writeEn) {
         keyLen := Cat(keyLen(15, 8), writeData)
-        state := s_xtralen
+        m_state := m_xtralen
       }
     }
-    is (s_xtralen) {
+    is (m_xtralen) {
       when (writeEn) {
         headerLen := headerLen + writeData
-        state := s_key_info
+        m_state := m_key_info
       }
     }
-    is (s_key_info) {
+    is (m_key_info) {
       when (io.keyInfo.ready) {
         getReqLens(curTag) := pktLen
         curTag := curTag + UInt(1)
-        state := s_key_start
+        m_state := m_key_start
       }
     }
-    is (s_key_start) {
+    is (m_key_start) {
       when (pktCount === headerLen) {
         sendDefer := Bool(true)
-        state := s_pkt_defer
+        m_state := m_pkt_defer
       }
     }
-    is (s_pkt_defer) {
+    is (m_pkt_defer) {
       when (mainBuffer.io.stream.ready) {
-        state := s_keydata_send
+        m_state := m_keydata_send
       }
     }
-    is (s_keydata_send) {
+    is (m_keydata_send) {
       when (io.keyData.ready) {
-        state := s_keydata_read
+        m_state := m_keydata_read
       }
     }
-    is (s_keydata_read) {
+    is (m_keydata_read) {
       when (io.temac.valid) {
         when (io.temac.last) {
-          state := s_keydata_last
+          m_state := m_keydata_last
         } .otherwise {
-          state := s_keydata_send
+          m_state := m_keydata_send
         }
       }
     }
-    is (s_keydata_last) {
+    is (m_keydata_last) {
       when (io.keyData.ready) {
-        state := s_finish_defer
+        m_state := m_finish_defer
       }
     }
-    is (s_finish_defer) {
+    is (m_finish_defer) {
       when (mainBuffer.io.stream.ready) {
         sendDefer := Bool(false)
-        state := s_idle
+        m_state := m_idle
       }
     }
-    is (s_start_stream) {
+    is (m_start_stream) {
       when (mainBuffer.io.stream.ready) {
-        state := s_finish
+        m_state := m_finish
       }
     }
-    is (s_start_skip) {
+    is (m_start_skip) {
       when (mainBuffer.io.skip.ready) {
-        state := s_finish
+        m_state := m_finish
       }
     }
-    is (s_finish) {
+    is (m_finish) {
       when (io.temac.valid && io.temac.last) {
         ignore := Bool(false)
-        state := s_idle
+        m_state := m_idle
+      }
+    }
+  }
+
+  val streamRunning = Reg(init = Bool(false))
+  when (streamSplit.io.out_a.valid && streamSplit.io.out_a.ready) {
+    when (streamSplit.io.out_a.last) {
+      streamRunning := Bool(false)
+    } .otherwise {
+      streamRunning := Bool(true)
+    }
+  }
+
+  val (d_idle :: d_check :: d_switch :: d_start :: d_finish :: Nil) = Enum(Bits(), 5)
+  val d_state = Reg(init = d_idle)
+  val resTag = Reg(UInt(width = TagSize))
+  val resLen = Reg(UInt(width = KeyLenSize))
+  val deferPktLen = Reg(UInt(width = AddrSize))
+
+  deferBuffer.io.stream.bits := deferPktLen
+  deferBuffer.io.stream.valid := (d_state === d_start)
+  deferBuffer.io.skip.bits := deferPktLen
+
+  io.resultInfo.ready := (d_state === d_idle)
+
+  switch (d_state) {
+    is (d_idle) {
+      when (io.resultInfo.valid) {
+        resLen := io.resultInfo.bits.len
+        resTag := io.resultInfo.bits.tag
+        d_state := d_check
+      }
+    }
+    is (d_check) {
+      when (resLen === UInt(0)) {
+        deferPktLen := getReqLens(resTag)
+        d_state := d_switch
+      }
+    }
+    is (d_switch) {
+      when (!streamRunning) {
+        recvDefer := Bool(true)
+        d_state := d_start
+      }
+    }
+    is (d_start) {
+      when (deferBuffer.io.stream.ready) {
+        d_state := d_finish
+      }
+    }
+    is (d_finish) {
+      val deferFinished = deferBuffer.io.readData.valid &&
+        deferBuffer.io.readData.last &&
+        deferBuffer.io.readData.ready
+      when (deferFinished) {
+        recvDefer := Bool(false)
+        d_state := d_idle
       }
     }
   }
@@ -305,7 +367,9 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     for (i <- 0 until packet.size) {
       waitUntil(c.io.core.valid, 10)
 
-      expect(c.io.core.data, packet(i))
+      val byte = packet(i)
+      val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
+      expect(c.io.core.data, word)
       if (i == packet.size - 1)
         expect(c.io.core.last, 1)
       else
@@ -338,8 +402,18 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   println("Sending UDP packet")
   sendPacket(udpPacket)
 
+  waitUntil(c.io.resultInfo.ready, 10)
+  poke(c.io.resultInfo.valid, 1)
+  poke(c.io.resultInfo.bits.tag, 0)
+  poke(c.io.resultInfo.bits.len, 0)
+  step(1)
+  poke(c.io.resultInfo.valid, 0)
+
   println("Receiving UDP packet")
   recvPacket(udpPacket)
+
+  println("Receiving memcached packet")
+  recvPacket(mcPacket)
 }
 
 object PacketFilterMain {
