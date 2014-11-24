@@ -42,13 +42,15 @@ class ChecksumCompute(LenSize: Int) extends Module {
       }
     }
     is (s_lower) {
-      cursum := cursum + Cat(highbyte, io.data.bits)
-      length := length - UInt(1)
+      when (io.data.valid) {
+        cursum := cursum + Cat(highbyte, io.data.bits)
+        length := length - UInt(1)
 
-      when (length === UInt(1)) {
-        state := s_fold
-      } .otherwise {
-        state := s_higher
+        when (length === UInt(1)) {
+          state := s_fold
+        } .otherwise {
+          state := s_higher
+        }
       }
     }
     is (s_fold) {
