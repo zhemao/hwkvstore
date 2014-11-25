@@ -70,26 +70,42 @@ class ChecksumCompute(LenSize: Int) extends Module {
   }
 }
 
-class ChecksumComputeTest(c: ChecksumCompute) extends Tester(c) {
-  val words = Array.fill(50) { rnd.nextInt & 0xffff }
-  var checksum = words.foldLeft(0) { _ + _ }
+object ChecksumUtils {
+  def computeChecksum(data: Array[Byte]): Int = {
+    val numWords = (data.length - 1) / 2 + 1
+    val words = new Array[Int](numWords)
 
-  checksum = (checksum >> 16) + (checksum & 0xffff)
-  checksum = ~checksum & 0xffff
+    for (i <- 0 until numWords) {
+      val high = data(2 * i).intValue & 0xff
+      val low = if (2 * i + 1 < data.length)
+        data(2 * i + 1).intValue & 0xff else 0
+      words(i) = (high << 8) | low
+    }
+
+    var checksum = words.foldLeft(0){_ + _}
+    checksum = (checksum >> 16) + (checksum & 0xffff)
+    ~checksum & 0xffff
+  }
+}
+
+import ChecksumUtils._
+
+class ChecksumComputeTest(c: ChecksumCompute) extends Tester(c) {
+  val bytes = Array.fill(99) { (rnd.nextInt & 0xff).byteValue }
+  val checksum = computeChecksum(bytes)
 
   expect(c.io.len.ready, 1)
-  poke(c.io.len.bits, 2 * words.length)
+  poke(c.io.len.bits, bytes.length)
   poke(c.io.len.valid, 1)
   step(1)
   poke(c.io.len.valid, 0)
 
   poke(c.io.data.valid, 1)
 
-  for (w <- words) {
+  for (b <- bytes) {
     expect(c.io.data.ready, 1)
-    poke(c.io.data.bits, (w >> 8) & 0xff)
-    step(1)
-    poke(c.io.data.bits, w & 0xff)
+    val w = b.intValue & 0xff
+    poke(c.io.data.bits, w)
     step(1)
   }
   poke(c.io.data.valid, 0)
