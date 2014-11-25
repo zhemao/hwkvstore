@@ -25,6 +25,7 @@ class ChecksumCompute(LenSize: Int) extends Module {
     is (s_idle) {
       when (io.len.valid) {
         length := io.len.bits
+        cursum := UInt(0)
         state := s_higher
       }
     }
