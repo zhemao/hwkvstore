@@ -561,6 +561,10 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   temacRecvPacket(mcResponse)
 
   coreTemacPassthru(10)
+
+  println("Sending and receiving TCP packet again")
+  temacSendPacket(tcpPacket)
+  coreRecvPacket(tcpPacket)
 }
 
 object PacketFilterMain {
