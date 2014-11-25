@@ -480,6 +480,24 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     }
   }
 
+  def coreTemacPassthru(n: Int) {
+    poke(c.io.core_tx.valid, 1)
+    poke(c.io.temac_tx.ready, 1)
+
+    for (i <- 0 until n) {
+      val word = rnd.nextInt & 0xff
+      poke(c.io.core_tx.data, word)
+      expect(c.io.temac_tx.data, word)
+      step(1)
+    }
+
+    poke(c.io.core_tx.valid, 1)
+    poke(c.io.core_tx.last, 1)
+    step(1)
+    poke(c.io.core_tx.valid, 0)
+    poke(c.io.temac_tx.ready, 0)
+  }
+
   val srcAddr = Array[Byte](1, 2, 3, 4)
   val srcPort = 0x1170
   val dstAddr = Array[Byte](5, 6, 7, 8)
@@ -535,8 +553,14 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   println("Sending accelerator result")
   sendResult(result, 1)
 
+  // make sure that first to arbiter gets streamed out
+  waitUntil(c.io.temac_tx.valid, 20)
+  poke(c.io.core_tx.valid, 1)
+
   println("Getting memcached response packet")
   temacRecvPacket(mcResponse)
+
+  coreTemacPassthru(10)
 }
 
 object PacketFilterMain {
