@@ -67,3 +67,25 @@ object MemcachedGet {
     UdpPacket(srcaddr, srcport, dstaddr, dstport, data, ipv6)
   }
 }
+
+object MemcachedResp {
+  def apply(srcaddr: Array[Byte], srcport: Int,
+      dstaddr: Array[Byte], dstport: Int, value: String): Array[Byte] = {
+    val header = Array.fill(28) { 0.toByte }
+    // magic
+    header(0) = 0x81.byteValue
+    // extras length
+    header(4) = 4
+    // body length
+    header(10) = ((value.length >> 8) & 0xff).byteValue
+    header(11) = (value.length & 0xff).byteValue
+    // Extras 0xDEADBEEF
+    header(24) = 0xde.byteValue
+    header(25) = 0xad.byteValue
+    header(26) = 0xbe.byteValue
+    header(27) = 0xef.byteValue
+
+    val data = header ++ value.getBytes
+    UdpPacket(srcaddr, srcport, dstaddr, dstport, data)
+  }
+}
