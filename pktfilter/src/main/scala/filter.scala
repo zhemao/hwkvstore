@@ -14,6 +14,8 @@ class PacketFilter extends Module {
   val io = new Bundle {
     val temac_rx = Stream(UInt(width = 8)).flip
     val core_rx  = Stream(UInt(width = 8))
+    val temac_tx = Stream(UInt(width = 8))
+    val core_tx  = Stream(UInt(width = 8)).flip
     val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
     val resultInfo = Decoupled(new MessageInfo(ValLenSize, TagSize)).flip
@@ -42,11 +44,6 @@ class PacketFilter extends Module {
     m_finish_defer :: Nil) = rest
   val m_state = Reg(init = m_idle)
 
-  val recvDefer = Reg(init = Bool(false))
-  val streamMux = StreamMux(UInt(width = 8))
-  streamMux.io.sel := recvDefer
-  streamMux.io.out <> io.core_rx
-
   val mainWriter = StreamWriter(UInt(width = 8), 16)
   mainWriter.io.stream <> io.temac_rx
   mainWriter.io.ignore := ignore
@@ -74,7 +71,6 @@ class PacketFilter extends Module {
   deferWriter.io.ignore := Bool(false)
 
   val deferBuffer = Module(new PacketBuffer(BufferSize))
-  deferBuffer.io.readData <> streamMux.io.in_b
   deferBuffer.io.writeData := deferWriter.io.writeData
   deferBuffer.io.writeEn := deferWriter.io.writeEn
   deferWriter.io.enable := !deferBuffer.io.full
@@ -83,9 +79,10 @@ class PacketFilter extends Module {
 
   val streamSplit = StreamSplit(UInt(width = 8))
   streamSplit.io.in <> mainBuffer.io.readData
-  streamSplit.io.out_a <> streamMux.io.in_a
   streamSplit.io.out_b <> deferWriter.io.stream
   streamSplit.io.sel := sendDefer
+
+  io.core_rx <> StreamArbiter(streamSplit.io.out_a, deferBuffer.io.readData)
 
   io.keyInfo.bits.len := keyLen(KeyLenSize - 1, 0)
   io.keyInfo.bits.tag := curTag
@@ -103,7 +100,7 @@ class PacketFilter extends Module {
 
   switch (m_state) {
     is (m_idle) {
-      when (io.temac_rx.valid && !mainBuffer.io.full && !recvDefer) {
+      when (io.temac_rx.valid && !mainBuffer.io.full) {
         m_state := m_ihl
       }
     }
@@ -317,16 +314,7 @@ class PacketFilter extends Module {
     }
   }
 
-  val streamRunning = Reg(init = Bool(false))
-  when (streamSplit.io.out_a.valid && streamSplit.io.out_a.ready) {
-    when (streamSplit.io.out_a.last) {
-      streamRunning := Bool(false)
-    } .otherwise {
-      streamRunning := Bool(true)
-    }
-  }
-
-  val (d_idle :: d_check :: d_switch :: d_start :: d_finish :: Nil) = Enum(Bits(), 5)
+  val (d_idle :: d_check :: d_stream :: d_skip :: d_resp :: Nil) = Enum(Bits(), 5)
   val d_state = Reg(init = d_idle)
   val resTag = Reg(UInt(width = TagSize))
   val resLen = Reg(UInt(width = KeyLenSize))
@@ -334,10 +322,20 @@ class PacketFilter extends Module {
   val reqPktLen = Reg(UInt(width = AddrSize))
 
   deferBuffer.io.stream.bits := reqPktLen
-  deferBuffer.io.stream.valid := (d_state === d_start)
+  deferBuffer.io.stream.valid := (d_state === d_stream)
   deferBuffer.io.skip.bits := reqPktLen
+  deferBuffer.io.skip.valid := (d_state === d_skip)
 
   io.resultInfo.ready := (d_state === d_idle)
+
+  val ResponderCacheSize = params[Int]("respcachesize")
+  val responder = Module(new Responder(AddrSize, ResponderCacheSize))
+  responder.io.resultData <> io.resultData
+  responder.io.resLen := resLen
+  responder.io.pktRoute := reqPktRoute
+  responder.io.start := (d_state === d_resp)
+
+  io.temac_tx <> StreamArbiter(io.core_tx, responder.io.temac_tx)
 
   switch (d_state) {
     is (d_idle) {
@@ -351,26 +349,23 @@ class PacketFilter extends Module {
       reqPktLen := getReqLens(resTag)
       reqPktRoute := getReqRoutes(resTag)
       when (resLen === UInt(0)) {
-        d_state := d_switch
+        d_state := d_stream
+      } .otherwise {
+        d_state := d_skip
       }
     }
-    is (d_switch) {
-      when (!streamRunning) {
-        recvDefer := Bool(true)
-        d_state := d_start
-      }
-    }
-    is (d_start) {
+    is (d_stream) {
       when (deferBuffer.io.stream.ready) {
-        d_state := d_finish
+        d_state := d_idle
       }
     }
-    is (d_finish) {
-      val deferFinished = deferBuffer.io.readData.valid &&
-        deferBuffer.io.readData.last &&
-        deferBuffer.io.readData.ready
-      when (deferFinished) {
-        recvDefer := Bool(false)
+    is (d_skip) {
+      when (deferBuffer.io.skip.ready) {
+        d_state := d_resp
+      }
+    }
+    is (d_resp) {
+      when (responder.io.ready) {
         d_state := d_idle
       }
     }
@@ -390,10 +385,10 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
       println(s"Error: timed out after ${ticks} cycles")
   }
 
-  def sendPacket(packet: Array[Byte], key: String = null) {
+  def sendPacket(stream: StreamIO[UInt], packet: Array[Byte], key: String = null) {
     var keyind = 0
 
-    poke(c.io.temac_rx.valid, 1)
+    poke(stream.valid, 1)
     if (key != null) {
       poke(c.io.keyInfo.ready, 1)
       poke(c.io.keyData.ready, 1)
@@ -401,15 +396,15 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     for (i <- 0 until packet.size) {
       val byte = packet(i)
       val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
-      poke(c.io.temac_rx.data, word)
+      poke(stream.data, word)
       if (i == packet.size - 1)
-        poke(c.io.temac_rx.last, 1)
+        poke(stream.last, 1)
       else
-        poke(c.io.temac_rx.last, 0)
+        poke(stream.last, 0)
       step(1)
 
       var cycles = 10
-      while (cycles > 0 && peek(c.io.temac_rx.ready) != 1) {
+      while (cycles > 0 && peek(stream.ready) != 1) {
         if (key != null) {
           if (peek(c.io.keyInfo.valid) == 1) {
             expect(c.io.keyInfo.bits.len, key.size)
@@ -422,30 +417,66 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
         cycles -= 1
         step(1)
       }
-      waitUntil(c.io.temac_rx.ready, 10)
+      waitUntil(stream.ready, 10)
     }
-    poke(c.io.temac_rx.valid, 0)
+    poke(stream.valid, 0)
     if (key != null)
       assert(keyind == key.length, "Error: didn't finish reading key data")
     poke(c.io.keyData.ready, 0)
     poke(c.io.keyInfo.ready, 0)
   }
 
-  def recvPacket(packet: Array[Byte]) {
-    poke(c.io.core_rx.ready, 1)
+  def temacSendPacket(packet: Array[Byte], key: String = null) {
+    sendPacket(c.io.temac_rx, packet, key)
+  }
+
+  def coreSendPacket(packet: Array[Byte]) {
+    sendPacket(c.io.core_tx, packet)
+  }
+
+  def recvPacket(stream: StreamIO[UInt], packet: Array[Byte]) {
+    poke(stream.ready, 1)
     for (i <- 0 until packet.size) {
-      waitUntil(c.io.core_rx.valid, 10)
+      waitUntil(stream.valid, 10)
 
       val byte = packet(i)
       val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
-      expect(c.io.core_rx.data, word)
+      expect(stream.data, word)
       if (i == packet.size - 1)
-        expect(c.io.core_rx.last, 1)
+        expect(stream.last, 1)
       else
-        expect(c.io.core_rx.last, 0)
+        expect(stream.last, 0)
       step(1)
     }
-    poke(c.io.core_rx.ready, 0)
+    poke(stream.ready, 0)
+  }
+
+  def coreRecvPacket(packet: Array[Byte]) {
+    recvPacket(c.io.core_rx, packet)
+  }
+
+  def temacRecvPacket(packet: Array[Byte]) {
+    recvPacket(c.io.temac_tx, packet)
+  }
+
+  def sendResult(result: String, tag: Int) {
+    waitUntil(c.io.resultInfo.ready, 10)
+    poke(c.io.resultInfo.valid, 1)
+    poke(c.io.resultInfo.bits.tag, tag)
+    poke(c.io.resultInfo.bits.len, result.size)
+    step(1)
+    poke(c.io.resultInfo.valid, 0)
+
+    if (result.length > 0) {
+      waitUntil(c.io.resultData.ready, 100)
+      poke(c.io.resultData.valid, 1)
+      for (ch <- result) {
+        poke(c.io.resultData.bits, ch)
+        step(1)
+        waitUntil(c.io.resultData.ready, 10)
+      }
+      poke(c.io.resultData.valid, 0)
+    }
   }
 
   val srcAddr = Array[Byte](1, 2, 3, 4)
@@ -461,42 +492,50 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val mcPacket = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort, mcKey)
   val ipv6Packet = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort,
     mcKey, ipv6 = true)
+  val result = "this is the result"
+  val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result)
 
   println("Sending bad packet")
-  sendPacket(badPacket)
+  temacSendPacket(badPacket)
 
   println("Sending TCP packet")
-  sendPacket(tcpPacket)
+  temacSendPacket(tcpPacket)
 
   println("Receiving TCP packet")
-  recvPacket(tcpPacket)
+  coreRecvPacket(tcpPacket)
 
   println("Sending memcached packet")
-  sendPacket(mcPacket, mcKey)
+  temacSendPacket(mcPacket, mcKey)
 
   waitUntil(c.io.temac_rx.ready, 500)
 
   println("Sending UDP packet")
-  sendPacket(udpPacket)
+  temacSendPacket(udpPacket)
 
-  waitUntil(c.io.resultInfo.ready, 10)
-  poke(c.io.resultInfo.valid, 1)
-  poke(c.io.resultInfo.bits.tag, 0)
-  poke(c.io.resultInfo.bits.len, 0)
-  step(1)
-  poke(c.io.resultInfo.valid, 0)
+  sendResult("", 0)
 
   println("Receiving UDP packet")
-  recvPacket(udpPacket)
+  coreRecvPacket(udpPacket)
 
   println("Receiving memcached packet")
-  recvPacket(mcPacket)
+  coreRecvPacket(mcPacket)
 
   println("Sending IPv6 packet")
-  sendPacket(ipv6Packet)
+  temacSendPacket(ipv6Packet)
 
   println("Receiving IPv6 packet")
-  recvPacket(ipv6Packet)
+  coreRecvPacket(ipv6Packet)
+
+  println("Sending memcached packet again")
+  temacSendPacket(mcPacket, mcKey)
+
+  // send the result back from the "accelerator"
+  waitUntil(c.io.temac_rx.ready, 500)
+  println("Sending accelerator result")
+  sendResult(result, 1)
+
+  println("Getting memcached response packet")
+  temacRecvPacket(mcResponse)
 }
 
 object PacketFilterMain {

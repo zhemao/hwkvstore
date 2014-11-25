@@ -2,6 +2,50 @@ package pktfilter
 
 import Chisel._
 
+class StreamArbiter[T <: Data](gen: T, n: Int) extends Module {
+  val io = new Bundle {
+    val ins = Vec.fill(n) { Stream(gen) }.flip
+    val out = Stream(gen)
+  }
+
+  val sel = Reg(init = UInt(0, log2Up(n)))
+  val running = Reg(init = Bool(false))
+
+  io.out.data := io.ins(sel).data
+  io.out.last := io.ins(sel).last
+  io.out.valid := io.ins(sel).valid && running
+
+  for (i <- 0 until n)
+    io.ins(i).ready := io.out.ready && sel === UInt(i) && running
+
+  when (!running) {
+    when (io.ins(sel).valid) {
+      running := Bool(true)
+    } .otherwise {
+      sel := sel + UInt(1)
+    }
+  } .elsewhen (io.out.valid && io.out.last && io.out.ready) {
+    running := Bool(false)
+    sel := sel + UInt(1)
+  }
+}
+
+object StreamArbiter {
+  def apply[T <: Data](vec: Vec[StreamIO[T]]): StreamIO[T] = {
+    val arbiter = Module(new StreamArbiter(vec(0).gen, vec.length))
+    arbiter.io.ins <> vec
+    arbiter.io.out
+  }
+
+  def apply[T <: Data](streams: Iterable[StreamIO[T]]): StreamIO[T] = {
+    apply(Vec(streams))
+  }
+
+  def apply[T <: Data](streams: StreamIO[T]*): StreamIO[T] = {
+    apply(streams)
+  }
+}
+
 class StreamSplit[+T <: Data](gen: T) extends Module {
   val io = new Bundle {
     val in = Stream(gen).flip

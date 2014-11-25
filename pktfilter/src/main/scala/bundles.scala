@@ -2,7 +2,8 @@ package pktfilter
 
 import Chisel._
 
-class StreamIO[+T <: Data](gen: T) extends Bundle {
+class StreamIO[+T <: Data](val gen: T)
+    extends Bundle(Seq("ready", "valid", "data", "last")) {
   val ready = Bool(INPUT)
   val valid = Bool(OUTPUT)
   val data = gen.clone.asOutput
