@@ -275,32 +275,8 @@ class ResponderTest(c: Responder) extends Tester(c) {
   val dstaddr = Array[Byte](10, 0, 0, 2)
   val dstport = 11271
   val result = "this is the result"
-  val packet = MemcachedResp(srcaddr, srcport, dstaddr, dstport, result)
-
-  // set the TTL
-  packet(8) = c.TTL.byteValue
-
-  // set IP checksum
-  val ipChecksum = computeChecksum(packet.slice(0, 20))
-  packet(10) = ((ipChecksum >> 8) & 0xff).byteValue
-  packet(11) = (ipChecksum & 0xff).byteValue
-
-  // set UDP checksum
-  val pseudoPacket = packet.slice(12, 20) ++
-    Array[Byte](0, UdpProtocol.byteValue) ++
-    packet.slice(24, 26) ++ packet.slice(20, packet.length)
-  val udpChecksum = computeChecksum(pseudoPacket)
-  packet(26) = ((udpChecksum >> 8) & 0xff).byteValue
-  packet(27) = (udpChecksum & 0xff).byteValue
-
-  for (i <- 0 until pseudoPacket.length by 4) {
-    val rowend = min(i + 4, pseudoPacket.length)
-    for (j <- i until rowend) {
-      val w = pseudoPacket(j).intValue & 0xff
-      print("%x ".format(w))
-    }
-    println("")
-  }
+  val packet = MemcachedResp(
+    srcaddr, srcport, dstaddr, dstport, result, false, c.TTL)
 
   // prepend 0 byte to make sure the ints aren't negative
   val srcAddrInt = BigInt(Array[Byte](0) ++ srcaddr)
