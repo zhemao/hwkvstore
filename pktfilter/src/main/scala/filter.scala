@@ -382,7 +382,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     }
     isTrace = true
     if (ticks == timeout)
-      println(s"Error: timed out after ${ticks} cycles")
+      println(s"Error: timed out waiting for ${signal.name}")
   }
 
   def sendPacket(stream: StreamIO[UInt], packet: Array[Byte], key: String = null) {
@@ -401,6 +401,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
         poke(stream.last, 1)
       else
         poke(stream.last, 0)
+
+      waitUntil(stream.ready, 10)
       step(1)
 
       var cycles = 10
@@ -417,7 +419,6 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
         cycles -= 1
         step(1)
       }
-      waitUntil(stream.ready, 10)
     }
     poke(stream.valid, 0)
     if (key != null)
