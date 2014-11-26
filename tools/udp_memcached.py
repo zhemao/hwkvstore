@@ -1,5 +1,8 @@
+#!/usr/bin/env python2
+
 import socket
 import struct
+import sys
 
 BUFSIZE = 4096
 
@@ -38,3 +41,25 @@ class Client(object):
             return None
         self.rid += 1
         return resp[VALUE_OFFSET:]
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Usage: udp_memcached.py [host] [port] key")
+        sys.exit(1)
+    if len(sys.argv) == 2:
+        host = '127.0.0.1'
+        port = 11211
+        key = sys.argv[1]
+    elif len(sys.argv) == 3:
+        host = sys.argv[1]
+        port = 11211
+        key = sys.argv[2]
+    else:
+        host = sys.argv[1]
+        port = int(sys.argv[2])
+        key = sys.argv[3]
+
+    client = Client(host, port)
+    value = client.get(key)
+    if value:
+        print(value)
