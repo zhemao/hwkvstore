@@ -70,12 +70,16 @@ object UdpPacket {
 object MemcachedGet {
   def apply(srcaddr: Array[Byte], srcport: Int,
       dstaddr: Array[Byte], dstport: Int,
-      key: String, ipv6: Boolean = false, ttl: Int = 100): Array[Byte] = {
-    val header = Array.fill(24) { 0.toByte }
-    header(0) = MCMagic.toByte
-    header(1) = GetOpcode.toByte
-    header(3) = key.length.toByte
+      key: String, reqid: Int,
+      ipv6: Boolean = false, ttl: Int = 100): Array[Byte] = {
+    val header = Array.fill(32) { 0.toByte }
+    header(0) = ((reqid >> 8) & 0xff).toByte
+    header(1) = (reqid & 0xff).toByte
+    header(5) = 1
+    header(8) = MCMagic.toByte
+    header(9) = GetOpcode.toByte
     header(11) = key.length.toByte
+    header(19) = key.length.toByte
 
     val data = header ++ key.getBytes
 
@@ -85,21 +89,24 @@ object MemcachedGet {
 
 object MemcachedResp {
   def apply(srcaddr: Array[Byte], srcport: Int,
-      dstaddr: Array[Byte], dstport: Int, value: String,
+      dstaddr: Array[Byte], dstport: Int, value: String, reqid: Int,
       ipv6: Boolean = false, ttl: Int = 100): Array[Byte] = {
-    val header = Array.fill(28) { 0.toByte }
+    val header = Array.fill(36) { 0.toByte }
+    header(0) = ((reqid >> 8) & 0xff).toByte
+    header(1) = (reqid & 0xff).toByte
+    header(5) = 1
     // magic
-    header(0) = 0x81.byteValue
+    header(8) = 0x81.byteValue
     // extras length
-    header(4) = 4
+    header(12) = 4
     // body length
-    header(10) = ((value.length >> 8) & 0xff).byteValue
-    header(11) = (value.length & 0xff).byteValue
+    header(18) = ((value.length >> 8) & 0xff).byteValue
+    header(19) = (value.length & 0xff).byteValue
     // Extras 0xDEADBEEF
-    header(24) = 0xde.byteValue
-    header(25) = 0xad.byteValue
-    header(26) = 0xbe.byteValue
-    header(27) = 0xef.byteValue
+    header(32) = 0xde.byteValue
+    header(33) = 0xad.byteValue
+    header(34) = 0xbe.byteValue
+    header(35) = 0xef.byteValue
 
     val data = header ++ value.getBytes
     UdpPacket(srcaddr, srcport, dstaddr, dstport, data, ipv6, ttl)

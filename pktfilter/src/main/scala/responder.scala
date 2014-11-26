@@ -16,7 +16,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   }
 
   // IP header + UDP header + Memcached header
-  val HeaderLen = 20 + 8 + 28
+  val HeaderLen = 20 + 8 + 36
 
   val headerIndex = Reg(UInt(width = log2Up(HeaderLen)))
   val headerData = UInt(width = 8)
@@ -27,8 +27,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     io.resLen(15, 0)
 
   val ipPktLen = resLen + UInt(HeaderLen)
-  val udpPktLen = resLen + UInt(8 + 28)
-  val mcPktLen = resLen + UInt(28)
+  val udpPktLen = resLen + UInt(8 + 36)
+  val mcPktLen = resLen + UInt(36)
 
   val ipChecksum = Reg(UInt(width = 16))
   val udpChecksum = Reg(UInt(width = 16))
@@ -39,6 +39,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   val bodyData = buffer(bodyIndex)
 
   val TTL = 100
+
+  val IPHeaderSize = 20
 
   switch(headerIndex) {
     // default value
@@ -82,20 +84,27 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     is (UInt(26)) { headerData := udpChecksum(15, 8) }
     is (UInt(27)) { headerData := udpChecksum(7, 0) }
 
+    // Memcached UDP header
+    is (UInt(28)) { headerData := io.pktRoute.reqId(15, 8) }
+    is (UInt(29)) { headerData := io.pktRoute.reqId(7, 0) }
+    is (UInt(33)) { headerData := UInt(1) }
+
     // Memcached Header
     // Magic
-    is (UInt(28)) { headerData := UInt(0x81) }
+    is (UInt(36)) { headerData := UInt(0x81) }
     // Extra length
-    is (UInt(32)) { headerData := UInt(4) }
+    is (UInt(40)) { headerData := UInt(4) }
     // body length
-    is (UInt(38)) { headerData := resLen(15, 8) }
-    is (UInt(39)) { headerData := resLen(7, 0) }
+    is (UInt(46)) { headerData := resLen(15, 8) }
+    is (UInt(47)) { headerData := resLen(7, 0) }
     // Extras 0xDEADBEEF
-    is (UInt(52)) { headerData := UInt(0xde) }
-    is (UInt(53)) { headerData := UInt(0xad) }
-    is (UInt(54)) { headerData := UInt(0xbe) }
-    is (UInt(55)) { headerData := UInt(0xef) }
+    is (UInt(60)) { headerData := UInt(0xde) }
+    is (UInt(61)) { headerData := UInt(0xad) }
+    is (UInt(62)) { headerData := UInt(0xbe) }
+    is (UInt(63)) { headerData := UInt(0xef) }
   }
+
+  val PseudoHeaderSize = 56
 
   val pseudoHeaderData = UInt(width = 8)
   switch (headerIndex) {
@@ -125,19 +134,25 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     is (UInt(16)) { pseudoHeaderData := udpPktLen(15, 8) }
     is (UInt(17)) { pseudoHeaderData := udpPktLen(7, 0) }
 
+
+    // Memcached UDP Header
+    is (UInt(20)) { pseudoHeaderData := io.pktRoute.reqId(15, 8) }
+    is (UInt(21)) { pseudoHeaderData := io.pktRoute.reqId(7, 0) }
+    is (UInt(25)) { pseudoHeaderData := UInt(1) }
+
     // Memcached Header
     // Magic
-    is (UInt(20)) { pseudoHeaderData := UInt(0x81) }
+    is (UInt(28)) { pseudoHeaderData := UInt(0x81) }
     // Extra length
-    is (UInt(24)) { pseudoHeaderData := UInt(4) }
+    is (UInt(32)) { pseudoHeaderData := UInt(4) }
     // body length
-    is (UInt(30)) { pseudoHeaderData := resLen(15, 8) }
-    is (UInt(31)) { pseudoHeaderData := resLen(7, 0) }
+    is (UInt(38)) { pseudoHeaderData := resLen(15, 8) }
+    is (UInt(39)) { pseudoHeaderData := resLen(7, 0) }
     // Extras 0xDEADBEEF
-    is (UInt(44)) { pseudoHeaderData := UInt(0xde) }
-    is (UInt(45)) { pseudoHeaderData := UInt(0xad) }
-    is (UInt(46)) { pseudoHeaderData := UInt(0xbe) }
-    is (UInt(47)) { pseudoHeaderData := UInt(0xef) }
+    is (UInt(52)) { pseudoHeaderData := UInt(0xde) }
+    is (UInt(53)) { pseudoHeaderData := UInt(0xad) }
+    is (UInt(54)) { pseudoHeaderData := UInt(0xbe) }
+    is (UInt(55)) { pseudoHeaderData := UInt(0xef) }
   }
 
   val pktData = Reg(UInt(width = 8))
@@ -169,7 +184,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   switch (state) {
     is (s_idle) {
       when (io.start) {
-        pktLen := UInt(20)
+        pktLen := UInt(IPHeaderSize)
         headerIndex := UInt(0)
         state := s_ip_cs_start
       }
@@ -185,7 +200,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
       pktData := headerData
       headerIndex := headerIndex + UInt(1)
       // end of IP packet
-      when (headerIndex === UInt(20)) {
+      when (headerIndex === UInt(IPHeaderSize)) {
         state := s_ip_cs_end
       }
     }
@@ -208,7 +223,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     is (s_udp_cs_feed_head) {
       pktData := pseudoHeaderData
       headerIndex := headerIndex + UInt(1)
-      when (headerIndex === UInt(48)) {
+      when (headerIndex === UInt(PseudoHeaderSize)) {
         bodyIndex := UInt(0)
         state := s_udp_cs_read_body
       }
@@ -245,7 +260,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     }
     is (s_send_header) {
       when (io.temac_tx.ready) {
-        when (headerIndex === UInt(56)) {
+        // the total header size is 64, so the address will roll over to 0
+        when (headerIndex === UInt(0)) {
           pktData := bodyData
           bodyIndex := bodyIndex + UInt(1)
           state := s_send_body
@@ -276,7 +292,7 @@ class ResponderTest(c: Responder) extends Tester(c) {
   val dstport = 11271
   val result = "this is the result"
   val packet = MemcachedResp(
-    srcaddr, srcport, dstaddr, dstport, result, false, c.TTL)
+    srcaddr, srcport, dstaddr, dstport, result, 0, false, c.TTL)
 
   // prepend 0 byte to make sure the ints aren't negative
   val srcAddrInt = BigInt(Array[Byte](0) ++ srcaddr)
@@ -287,6 +303,7 @@ class ResponderTest(c: Responder) extends Tester(c) {
   poke(c.io.pktRoute.dstPort, srcport)
   poke(c.io.pktRoute.srcAddr, dstAddrInt)
   poke(c.io.pktRoute.srcPort, dstport)
+  poke(c.io.pktRoute.reqId, 0)
   poke(c.io.resLen, result.length)
 
   expect(c.io.ready, 1)
@@ -321,10 +338,13 @@ class ResponderTest(c: Responder) extends Tester(c) {
   if (cycles == 500) {
     println("Error: waiting for temac_tx timed out")
   } else {
+    var ind = 0
     for (b <- packet) {
       val w = b.intValue & 0xff
+      println(s"Byte ${ind}")
       expect(c.io.temac_tx.data, w)
       step(1)
+      ind += 1
     }
   }
 }

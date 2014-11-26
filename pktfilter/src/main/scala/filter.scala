@@ -96,7 +96,8 @@ class PacketFilter extends Module {
   val dstAddr = Reg(UInt(width = 32))
   val srcPort = Reg(UInt(width = 16))
   val dstPort = Reg(UInt(width = 16))
-  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort)
+  val reqId   = Reg(UInt(width = 16))
+  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort, reqId)
 
   switch (m_state) {
     is (m_idle) {
@@ -508,11 +509,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val udpPacket = UdpPacket(srcAddr, srcPort, dstAddr, dstPort,
     Array[Byte](0, 1, 2, 3))
   val mcKey = "this is a key"
-  val mcPacket = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort, mcKey)
+  val mcPacket = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort, mcKey, 1)
   val ipv6Packet = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort,
-    mcKey, ipv6 = true)
+    mcKey, 2, ipv6 = true)
   val result = "this is the result"
-  val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result)
+  val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result, 1)
 
   println("Sending bad packet")
   temacSendPacket(badPacket)
