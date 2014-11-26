@@ -38,8 +38,9 @@ class PacketFilter extends Module {
     m_start_stream :: m_finish :: m_start_skip ::
     m_srcaddr_start :: m_srcaddr :: m_dstaddr :: m_ip_end ::
     m_srcport_h :: m_srcport_l :: m_dstport_h :: m_dstport_l :: m_udp_end ::
-    m_magic :: m_opcode :: m_keylen_h :: m_keylen_l :: rest) = Enum(Bits(), 29)
-  val (m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
+    m_reqid_h :: m_reqid_l :: m_mc_udp_end :: rest) = Enum(Bits(), 32)
+  val (m_magic :: m_opcode :: m_keylen_h :: m_keylen_l ::
+    m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
     m_keydata_send :: m_keydata_read :: m_keydata_last ::
     m_finish_defer :: Nil) = rest
   val m_state = Reg(init = m_idle)
@@ -213,12 +214,34 @@ class PacketFilter extends Module {
     }
     is (m_udp_end) {
       when (pktCount === headerLen) {
+        headerLen := headerLen + UInt(8)
+        m_state := m_reqid_h
+      }
+    }
+    is (m_reqid_h) {
+      when (headerLen >= pktLen) {
+        m_state := m_start_stream
+      } .elsewhen (writeEn) {
+        reqId := Cat(writeData, UInt(0, 8))
+        m_state := m_reqid_l
+      }
+    }
+    is (m_reqid_l) {
+      when (writeEn) {
+        reqId := Cat(reqId(15, 8), writeData)
+        m_state := m_mc_udp_end
+      }
+    }
+    is (m_mc_udp_end) {
+      when (pktCount === headerLen) {
         headerLen := headerLen + UInt(24)
         m_state := m_magic
       }
     }
     is (m_magic) {
-      when (writeEn) {
+      when (headerLen >= pktLen) {
+        m_state := m_start_stream
+      } .elsewhen (writeEn) {
         when (writeData === UInt(MCMagic)) {
           m_state := m_opcode
         } .otherwise {
