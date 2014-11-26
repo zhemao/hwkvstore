@@ -69,27 +69,6 @@ object StreamSplit {
   }
 }
 
-class StreamMux[+T <: Data](gen: T) extends Module {
-  val io = new Bundle {
-    val in_a = Stream(gen).flip
-    val in_b = Stream(gen).flip
-    val out = Stream(gen)
-    val sel = Bool(INPUT)
-  }
-
-  io.out.data := Mux(io.sel, io.in_b.data, io.in_a.data)
-  io.out.last := Mux(io.sel, io.in_b.last, io.in_a.last)
-  io.out.valid := Mux(io.sel, io.in_b.valid, io.in_a.valid)
-  io.in_a.ready := io.out.ready && !io.sel
-  io.in_b.ready := io.out.ready && io.sel
-}
-
-object StreamMux {
-  def apply[T <: Data](gen: T): StreamMux[T] = {
-    Module(new StreamMux(gen))
-  }
-}
-
 class StreamWriter[+T <: Data](gen: T, CountSize: Int) extends Module {
   val io = new Bundle {
     val stream = Stream(gen).flip
