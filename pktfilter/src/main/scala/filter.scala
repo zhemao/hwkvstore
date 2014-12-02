@@ -23,8 +23,8 @@ class PacketFilter extends Module {
   }
 
   val curTag = Reg(init = UInt(0, TagSize))
-  val getReqLens = Mem(UInt(width = KeyLenSize), 1 << TagSize)
-  val getReqRoutes = Mem(new RoutingInfo, 1 << TagSize)
+  val getReqLens = Mem(UInt(width = KeyLenSize), 1 << TagSize, true)
+  val getReqRoutes = Mem(new RoutingInfo, 1 << TagSize, true)
 
   val pktLen = Reg(init = UInt(0, 16))
   val keyLen = Reg(init = UInt(0, 16))

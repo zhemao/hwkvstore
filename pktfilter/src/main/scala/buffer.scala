@@ -16,7 +16,7 @@ class PacketBuffer(BufferSize: Int) extends Module {
     val full = Bool(OUTPUT)
   }
 
-  val mem = Mem(UInt(width = 8), BufferSize)
+  val mem = Mem(UInt(width = 8), BufferSize, true)
   val writeHead = Reg(init = UInt(0, AddrSize))
   val readHead  = Reg(init = UInt(0, AddrSize))
   val readCount = Reg(init = UInt(0, AddrSize))
