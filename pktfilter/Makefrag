@@ -1,2 +1,4 @@
 PROJ := pktfilter
 CONFIG ?= PacketFilterConfig
+
+SBT := sbt -DchiselVersion="2.3-SNAPSHOT" -DkvstoreVersion="0.1-SNAPSHOT"

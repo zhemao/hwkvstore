@@ -5,3 +5,5 @@ FPGA_CONFIG ?= FpgaConfig
 
 VLSI_OUT_DIR := build/vlsi/generated-src
 vlsi_mem_gen := build/sram/vlsi_mem_gen
+
+SBT := sbt -DchiselVersion="2.3-SNAPSHOT"
