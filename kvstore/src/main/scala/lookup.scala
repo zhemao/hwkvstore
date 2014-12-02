@@ -6,8 +6,7 @@ import kvstore.Constants._
 
 class LookupPipeline(
     val WordSize: Int, val KeySize: Int, val NumKeys: Int,
-    ValCacheSize: Int, TagSize: Int)
-      extends Module {
+    ValCacheSize: Int, TagSize: Int) extends Module {
   val WordBytes = WordSize / 8
   val CurKeyWords = KeySize / WordBytes
   val AllKeyWords = CurKeyWords * NumKeys
@@ -216,18 +215,18 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     }
   }
 
-  def writeKey(key: String, tag: Int) = {
+  def writeKey(key: String, weight: Int) = {
     isTrace = false
-    println(s"Waiting for writeKeyInfo ready on ${tag}")
+    println(s"Waiting for writeKeyInfo ready")
     while (peek(c.io.writeKeyInfo.ready) == 0)
       step(1)
     poke(c.io.writeKeyInfo.valid, 1)
     poke(c.io.writeKeyInfo.bits.len, key.length)
-    poke(c.io.writeKeyInfo.bits.tag, tag)
+    poke(c.io.writeKeyInfo.bits.tag, weight)
     step(1)
     poke(c.io.writeKeyInfo.valid, 0)
     step(1)
-    println(s"Waiting for writeKeyData ready on ${tag}")
+    println(s"Waiting for writeKeyData ready")
     while (peek(c.io.writeKeyData.ready) == 0)
       step(1)
     poke(c.io.writeKeyData.valid, 1)
@@ -239,14 +238,13 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     step(1)
 
     poke(c.io.hashSel.ready, 1)
-    println(s"Waiting for hashSel valid on ${tag}")
+    println(s"Waiting for hashSel valid")
     while (peek(c.io.hashSel.valid) == 0) {
       step(1)
     }
     step(1)
     poke(c.io.hashSel.ready, 0)
     expect(c.io.hashSel.bits.found, 1)
-    expect(c.io.hashSel.bits.tag, tag)
     val hash = peek(c.io.hashSel.bits.hash)
     expect(c.io.copyReq.ready, 1)
     poke(c.io.copyReq.valid, 1)
@@ -255,7 +253,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     step(1)
     poke(c.io.copyReq.valid, 0)
 
-    println(s"Waiting for copyReq finish on ${tag}")
+    println(s"Waiting for copyReq finish")
     while (peek(c.io.copyReq.ready) == 0) {
       step(1)
     }
@@ -284,9 +282,9 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   poke(c.io.writemode, 1)
   poke(c.io.findAvailable, 1)
 
-  val hash1 = writeKey(key1, 1)
-  val hash2 = writeKey(key2, 2)
-  val hash3 = writeKey(key3, 3)
+  val hash1 = writeKey(key1, 0)
+  val hash2 = writeKey(key2, 0)
+  val hash3 = writeKey(key3, 0)
 
   printf("hashes: %d %d %d\n", hash1, hash2, hash3)
 

@@ -30,15 +30,15 @@ class KeyValueStore extends Module {
     val rocc = new RoCCInterface
   }
 
-  val lookup = Module(
-    new LookupPipeline(WordSize, KeySize, NumKeys, ValCacheSize, TagSize))
+  val lookup = Module(new LookupPipeline(
+    WordSize, KeySize, NumKeys, ValCacheSize, TagSize))
   lookup.io.readKeyInfo <> Queue(io.keyInfo, 2)
   lookup.io.readKeyData <> Queue(io.keyData, 2)
   io.resultInfo <> Queue(lookup.io.resultInfo, 2)
   io.resultData <> Queue(lookup.io.resultData, 2)
 
-  val ctrl = Module(
-    new CtrlModule(WordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
+  val ctrl = Module(new CtrlModule(
+    WordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
   ctrl.io.rocc    <> io.rocc
   ctrl.io.keyInfo <> lookup.io.writeKeyInfo
   ctrl.io.keyData <> lookup.io.writeKeyData

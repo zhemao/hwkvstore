@@ -131,7 +131,8 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
             action := StreamKeyAction
             readstart := io.rocc.cmd.bits.rs1
             writestart := UInt(0)
-            len := io.rocc.cmd.bits.rs2
+            len := io.rocc.cmd.bits.rs2(KeyLenSize - 1, 0)
+            keytag := io.rocc.cmd.bits.rs2(KeyLenSize + TagSize - 1, KeyLenSize)
             state := s_send_info
             found_state := s_reskey_setlen
             findAvailable := Bool(true)

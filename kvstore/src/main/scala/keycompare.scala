@@ -64,6 +64,14 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   io.hashOut.valid := (state === s_handoff)
   io.hashIn.ready := (state === s_wait)
 
+  def satInc(uint: UInt, w: Int): UInt = {
+    val ext = Cat(UInt(0, 1), uint)
+    val inc = ext + UInt(1)
+    inc(w - 1, 0) ^ Fill(w, inc(w))
+  }
+
+  val counts = Vec.fill(1 << HashSize) { Reg(init = UInt(0, HashSize)) }
+
   switch (state) {
     is (s_wait) {
       checkFirst := Bool(true)
@@ -77,7 +85,10 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       state := s_check_len
     }
     is (s_check_len) {
-      when (io.findAvailable && io.lenData === UInt(0)) {
+      // when findAvailable is true, the tag stands in for the weight
+      val canReplace = io.findAvailable && 
+        (io.lenData === UInt(0) || counts(curHash) < curInfo.tag)
+      when (canReplace) {
         hashFound := Bool(true)
         state := s_handoff
       } .elsewhen (io.lenData === curInfo.len) {
@@ -108,6 +119,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
           state := s_handoff
         }
       } .elsewhen (reachedEnd) {
+        counts(curHash) := satInc(counts(curHash), TagSize)
         hashFound := Bool(true)
         state := s_handoff
       } .otherwise {
@@ -166,7 +178,8 @@ class KeyCompareSetup(
   }
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys)
 
-  val keycomp = Module(new KeyCompare(HashSize, WordSize, MaxKeySize, TagSize))
+  val keycomp = Module(new KeyCompare(
+    HashSize, WordSize, MaxKeySize, TagSize))
   keycomp.io.hashIn.bits.hash1 := io.hash1
   keycomp.io.hashIn.bits.hash2 := io.hash2
   keycomp.io.hashIn.bits.len := io.len
@@ -246,11 +259,12 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
     isTrace = true
   }
 
-  def checkHashes(hash1: Int, hash2: Int, expectation: Int) {
+  def checkHashes(hash1: Int, hash2: Int, expectation: Int, tag: Int = 0) {
     expect(c.io.ready, 1)
 
     poke(c.io.hash1, hash1)
     poke(c.io.hash2, hash2)
+    poke(c.io.intag, tag)
     poke(c.io.start, 1)
     step(1)
     poke(c.io.start, 0)
@@ -295,6 +309,7 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
   poke(c.io.findAvailable, 1)
   checkHashes(1, 3, 1)
   checkHashes(2, 3, 1)
+  checkHashes(1, 3, 0, 15)
 }
 
 object KeyCompareMain {
