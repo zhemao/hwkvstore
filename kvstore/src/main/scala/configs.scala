@@ -19,7 +19,7 @@ class BaseConfig extends ChiselConfig {
       case "numkeys"  => Knob("numkeys")
       case "valcachesize" => Knob("valcachesize")
       case "banksize" => Knob("banksize")
-      case "tagsize" => 16
+      case "tagsize" => 4
       case "maxfanin" => Knob("maxfanin")
       case "bankmems" => Knob("bankmems")
     }
