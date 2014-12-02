@@ -20,6 +20,7 @@ class PacketFilter extends Module {
     val keyData = Decoupled(UInt(width = 8))
     val resultInfo = Decoupled(new MessageInfo(ValLenSize, TagSize)).flip
     val resultData = Decoupled(UInt(width = 8)).flip
+    val readready = Bool(INPUT)
   }
 
   val curTag = Reg(init = UInt(0, TagSize))
@@ -140,7 +141,7 @@ class PacketFilter extends Module {
     is (m_tll) {
       when (writeEn) {
         pktLen := Cat(pktLen(15, 8), writeData)
-        when (ipv6) {
+        when (ipv6 || !io.readready) {
           m_state := m_start_stream
         } .otherwise {
           m_state := m_prot
@@ -538,6 +539,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val result = "this is the result"
   val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result, 1)
 
+  poke(c.io.readready, 1)
+
   println("Sending bad packet")
   temacSendPacket(badPacket)
 
@@ -589,6 +592,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   println("Sending and receiving TCP packet again")
   temacSendPacket(tcpPacket)
   coreRecvPacket(tcpPacket)
+
+  println("Sending memcached request with readready off")
+  poke(c.io.readready, 0)
+  temacSendPacket(mcPacket)
+  coreRecvPacket(mcPacket)
 }
 
 object PacketFilterMain {
