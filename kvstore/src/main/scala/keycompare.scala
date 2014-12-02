@@ -19,6 +19,7 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     val hashIn = Decoupled(new HashInfo(HashSize, KeyLenSize, TagSize)).flip
     val hashOut = Decoupled(new HashSelection(HashSize, TagSize))
     val findAvailable = Bool(INPUT)
+    val resetCounts = Bool(INPUT)
   }
 
   val MaxFanIn = params[Int]("maxfanin")
@@ -70,7 +71,15 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
     inc(w - 1, 0) ^ Fill(w, inc(w))
   }
 
-  val counts = Vec.fill(1 << HashSize) { Reg(init = UInt(0, HashSize)) }
+  val NumCounts = 1 << HashSize
+
+  val counts = Vec.fill(NumCounts) { Reg(init = UInt(0, HashSize)) }
+
+  when (io.resetCounts) {
+    for (i <- 0 until NumCounts) {
+      counts(i) := UInt(0)
+    }
+  }
 
   switch (state) {
     is (s_wait) {

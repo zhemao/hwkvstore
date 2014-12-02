@@ -28,6 +28,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val halted = Bool(INPUT)
     val writemode = Bool(OUTPUT)
     val findAvailable = Bool(OUTPUT)
+    val resetCounts = Bool(OUTPUT)
 
     val keyInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
@@ -43,6 +44,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
 
   val findAvailable = Reg(Bool())
   io.findAvailable := findAvailable
+
+  val resetCounts = Reg(init = Bool(false))
+  io.resetCounts := resetCounts
 
   val (s_wait :: s_switch ::
     s_send_info :: s_stream_key :: s_gethash ::
@@ -109,6 +113,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   switch (state) {
     is (s_wait) {
       setLen := Bits("b000")
+      resetCounts := Bool(false)
       when (io.rocc.cmd.valid) {
         respDest := io.rocc.cmd.bits.inst.rd
 
@@ -160,6 +165,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     is (s_switch) {
       when (io.halted) {
         writemode := wantmode
+        when (wantmode === Bool(false)) {
+          resetCounts := Bool(true)
+        }
         state := s_wait
       }
     }

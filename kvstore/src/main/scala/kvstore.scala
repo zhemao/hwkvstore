@@ -59,6 +59,7 @@ class KeyValueStore extends Module {
   ctrl.io.halted    <> lookup.io.halted
   ctrl.io.writemode <> lookup.io.writemode
   ctrl.io.findAvailable <> lookup.io.findAvailable
+  ctrl.io.resetCounts   <> lookup.io.resetCounts
 
   io.writeready := ctrl.io.writemode  && !lookup.io.halted
   io.readready  := !ctrl.io.writemode && !lookup.io.halted

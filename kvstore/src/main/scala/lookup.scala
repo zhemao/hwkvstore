@@ -21,6 +21,7 @@ class LookupPipeline(
     val halted = Bool(OUTPUT)
     val writemode = Bool(INPUT)
     val findAvailable = Bool(INPUT)
+    val resetCounts = Bool(INPUT)
 
     val readKeyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
     val readKeyData = Decoupled(UInt(width = 8)).flip
@@ -70,6 +71,7 @@ class LookupPipeline(
     new KeyCompare(HashSize, WordSize, KeySize, TagSize))
   keycompare.io.hashIn <> hasherwriter.io.hashOut
   keycompare.io.findAvailable := io.findAvailable
+  keycompare.io.resetCounts := io.resetCounts
 
   val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
   keycopy.io.copyReq <> io.copyReq
