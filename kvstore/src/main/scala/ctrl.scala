@@ -36,7 +36,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize))
   }
 
-  val writemode = Reg(init = Bool(false))
+  val writemode = Reg(init = Bool(true))
   io.writemode := writemode
 
   val wantmode = Reg(Bool())

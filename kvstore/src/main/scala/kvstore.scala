@@ -87,11 +87,6 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   memory.store_data(0, keyWords)
   memory.store_data(256, valueWords)
 
-  println("Switching to write mode")
-  val writeMode = TestInst(0, 0, 1, 0, false, false, false)
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
-
-  until (Cmd_IHandler.isIdle && !isBusy, 10) {}
   expect(c.io.writeready, 1)
 
   println("Testing delete key")
@@ -187,6 +182,13 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   streamCurKey(key, 0)
   println("Reading out value")
   checkResult(value, 0)
+
+
+  println("Checking switch to write mode")
+  val writeMode = TestInst(0, 0, 1, 0, false, false, false)
+  Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
+  until (Cmd_IHandler.isIdle && !isBusy, 10) {}
+  expect(c.io.writeready, 1)
 }
 
 object KeyValueStoreMain {
