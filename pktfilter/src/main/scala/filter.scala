@@ -10,7 +10,6 @@ class PacketFilter extends Module {
   val TagSize = params[Int]("tagsize")
   val BufferSize = params[Int]("bufsize")
   val AddrSize = log2Up(BufferSize)
-  val StreamMaxLenShift = params[Int]("streammaxlenshift")
 
   val io = new Bundle {
     val temac_rx = Stream(UInt(width = 8)).flip
@@ -391,22 +390,14 @@ class PacketFilter extends Module {
       }
     }
     is (m_ul_read) {
-      val lowerPktCount = pktCount(StreamMaxLenShift - 1, 0)
       when (writeFinished) {
-        pktLen := lowerPktCount
-        m_state := m_ul_stream
-      } .elsewhen (lowerPktCount === UInt(0)) {
-        pktLen := UInt(1 << StreamMaxLenShift)
+        pktLen := pktCount
         m_state := m_ul_stream
       }
     }
     is (m_ul_stream) {
       when (mainBuffer.io.stream.ready) {
-        when (writeFinished) {
-          m_state := m_idle
-        } .otherwise {
-          m_state := m_ul_read
-        }
+        m_state := m_idle
       }
     }
   }
@@ -600,7 +591,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val dstAddr = Array[Byte](5, 6, 7, 8)
   val dstPort = 0x1171
   val nonIpPacket = EthernetPacket(
-    DefaultDstMac, DefaultSrcMac, 0, Array[Byte](0, 0, 0, 0))
+    DefaultDstMac, DefaultSrcMac, 0x1124,
+    Array.fill(36) { (rnd.nextInt.byteValue & 0xff).byteValue })
   val tcpPacket = IPv4Packet(TcpProtocol, srcAddr, dstAddr,
     Array[Byte](0, 1, 2, 3))
   val udpPacket = UdpPacket(srcAddr, srcPort, dstAddr, dstPort,
