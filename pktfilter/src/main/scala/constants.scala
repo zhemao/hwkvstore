@@ -20,4 +20,6 @@ object Constants {
 
   val IPv4EtherType = 0x0800
   val IPv6EtherType = 0x86DD
+
+  val EthHeaderLen = 14
 }

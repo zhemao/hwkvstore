@@ -14,7 +14,6 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     val ready = Bool(OUTPUT)
   }
 
-  val EthHeaderLen = 14
   // IP header + UDP header + Memcached header
   val HeaderLen = 20 + 8 + 36
 

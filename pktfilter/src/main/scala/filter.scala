@@ -35,12 +35,14 @@ class PacketFilter extends Module {
 
   val ignore = Reg(init = Bool(false))
 
-  val (m_idle :: m_ihl :: m_tlh :: m_tll :: m_prot ::
+  val (m_idle :: m_dstmac :: m_srcmac :: m_eth :: m_etl ::
+    m_ihl :: m_tlh :: m_tll :: m_prot ::
     m_start_stream :: m_finish :: m_start_skip ::
     m_srcaddr_start :: m_srcaddr :: m_dstaddr :: m_ip_end ::
     m_srcport_h :: m_srcport_l :: m_dstport_h :: m_dstport_l :: m_udp_end ::
-    m_reqid_h :: m_reqid_l :: m_mc_udp_end :: rest) = Enum(Bits(), 32)
-  val (m_magic :: m_opcode :: m_keylen_h :: m_keylen_l ::
+    rest) = Enum(Bits(), 36)
+  val (m_reqid_h :: m_reqid_l :: m_mc_udp_end ::
+    m_magic :: m_opcode :: m_keylen_h :: m_keylen_l ::
     m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
     m_keydata_send :: m_keydata_read :: m_keydata_last ::
     m_finish_defer :: Nil) = rest
@@ -93,43 +95,91 @@ class PacketFilter extends Module {
   io.keyData.bits := writeData
   io.keyData.valid := (m_state === m_keydata_send) || (m_state === m_keydata_last)
 
+  val macIndex = Reg(UInt(width = 3))
+  val etherTypeHigh = Reg(UInt(width = 8))
+
   val ipv6 = Reg(Bool())
   val srcAddr = Reg(UInt(width = 32))
   val dstAddr = Reg(UInt(width = 32))
   val srcPort = Reg(UInt(width = 16))
   val dstPort = Reg(UInt(width = 16))
+  val srcMac  = Vec.fill(6) { Reg(UInt(width = 8)) }
+  val dstMac  = Vec.fill(6) { Reg(UInt(width = 8)) }
   val reqId   = Reg(UInt(width = 16))
-  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort, reqId)
+  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort, reqId, srcMac, dstMac)
 
   switch (m_state) {
     is (m_idle) {
       when (io.temac_rx.valid && !mainBuffer.io.full) {
-        m_state := m_ihl
+        macIndex := UInt(0)
+        headerLen := UInt(EthHeaderLen)
+        m_state := m_dstmac
+      }
+    }
+    is (m_dstmac) {
+      when (writeEn) {
+        dstMac(macIndex) := writeData
+        when (macIndex === UInt(5)) {
+          macIndex := UInt(0)
+          m_state := m_srcmac
+        } .otherwise {
+          macIndex := macIndex + UInt(1)
+        }
+      }
+    }
+    is (m_srcmac) {
+      when (writeEn) {
+        srcMac(macIndex) := writeData
+        when (macIndex === UInt(5)) {
+          m_state := m_eth
+        } .otherwise {
+          macIndex := macIndex + UInt(1)
+        }
+      }
+    }
+    is (m_eth) {
+      when (writeEn) {
+        etherTypeHigh := writeData
+        m_state := m_etl
+      }
+    }
+    is (m_etl) {
+      when (writeEn) {
+        val etherType = Cat(etherTypeHigh, writeData)
+        val isIP = etherType === UInt(IPv4EtherType) ||
+          etherType === UInt(IPv6EtherType)
+        when (isIP) {
+          m_state := m_ihl
+        } .otherwise {
+          // figure out what to do here
+        }
       }
     }
     is (m_ihl) {
-      val version = writeData(7, 4)
-      when (version === UInt(4)) {
-        // IPv4
-        headerLen := Cat(writeData(3, 0), UInt(0, 2))
-        lenOffset := UInt(IPv4LengthOffset + 1)
-        //protOffset := UInt(IPv4ProtocolOffset + 1)
-        ipv6 := Bool(false)
-        m_state := m_tlh
-      } .elsewhen (version === UInt(6)) {
-        // IPv6
-        headerLen := UInt(40)
-        lenOffset := UInt(IPv6LengthOffset + 1)
-        //protOffset := UInt(IPv6ProtocolOffset + 1)
-        ipv6 := Bool(true)
-        m_state := m_tlh
-      } .otherwise {
-        // if the version makes no sense
-        // ignore the rest of the packet
-        // and skip the byte we have already read
-        m_state := m_start_skip
-        pktLen := UInt(2)
-        ignore := Bool(true)
+      when (writeEn) {
+        val version = writeData(7, 4)
+        when (version === UInt(4)) {
+          // IPv4
+          headerLen := headerLen + Cat(writeData(3, 0), UInt(0, 2))
+          lenOffset := UInt(EthHeaderLen + IPv4LengthOffset + 1)
+          //protOffset := UInt(IPv4ProtocolOffset + 1)
+          ipv6 := Bool(false)
+          m_state := m_tlh
+        } .elsewhen (version === UInt(6)) {
+          // IPv6
+          headerLen := headerLen + UInt(40)
+          lenOffset := UInt(EthHeaderLen + IPv6LengthOffset + 1)
+          //protOffset := UInt(IPv6ProtocolOffset + 1)
+          ipv6 := Bool(true)
+          m_state := m_tlh
+        } .otherwise {
+          // if the version makes no sense
+          // ignore the rest of the packet
+          // and skip the byte we have already read
+          m_state := m_start_skip
+          pktLen := UInt(EthHeaderLen + 2)
+          ignore := Bool(true)
+        }
       }
     }
     is (m_tlh) {
@@ -140,7 +190,7 @@ class PacketFilter extends Module {
     }
     is (m_tll) {
       when (writeEn) {
-        pktLen := Cat(pktLen(15, 8), writeData)
+        pktLen := Cat(pktLen(15, 8), writeData) + UInt(EthHeaderLen)
         when (ipv6 || !io.readready) {
           m_state := m_start_stream
         } .otherwise {
@@ -149,7 +199,7 @@ class PacketFilter extends Module {
       }
     }
     is (m_prot) {
-      when (pktCount === UInt(IPv4ProtocolOffset + 1)) {
+      when (pktCount === UInt(EthHeaderLen + IPv4ProtocolOffset + 1)) {
         when (writeData === UInt(UdpProtocol)) {
           m_state := m_srcaddr_start
         } .otherwise {
@@ -158,7 +208,7 @@ class PacketFilter extends Module {
       }
     }
     is (m_srcaddr_start) {
-      when (pktCount === UInt(IPv4SrcAddrOffset)) {
+      when (pktCount === UInt(EthHeaderLen + IPv4SrcAddrOffset)) {
         srcAddr := UInt(0)
         m_state := m_srcaddr
       }
@@ -166,7 +216,7 @@ class PacketFilter extends Module {
     is (m_srcaddr) {
       when (writeEn) {
         srcAddr := Cat(srcAddr(23, 0), writeData)
-        when (pktCount === UInt(IPv4DstAddrOffset)) {
+        when (pktCount === UInt(EthHeaderLen + IPv4DstAddrOffset)) {
           dstAddr := UInt(0)
           m_state := m_dstaddr
         }
@@ -178,7 +228,7 @@ class PacketFilter extends Module {
         when (pktCount === headerLen) {
           headerLen := headerLen + UInt(8)
           m_state := m_srcport_h
-        } .elsewhen (pktCount === UInt(IPv4OptionsOffset)) {
+        } .elsewhen (pktCount === UInt(EthHeaderLen + IPv4OptionsOffset)) {
           m_state := m_ip_end
         }
       }
@@ -537,12 +587,13 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val ipv6Packet = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort,
     mcKey, 2, ipv6 = true)
   val result = "this is the result"
-  val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result, 1)
+  val mcResponse = MemcachedResp(dstAddr, dstPort, srcAddr, srcPort, result, 1,
+    false, 100, DefaultSrcMac, DefaultDstMac)
 
   poke(c.io.readready, 1)
 
-  println("Sending bad packet")
-  temacSendPacket(badPacket)
+  //println("Sending bad packet")
+  //temacSendPacket(badPacket)
 
   println("Sending TCP packet")
   temacSendPacket(tcpPacket)

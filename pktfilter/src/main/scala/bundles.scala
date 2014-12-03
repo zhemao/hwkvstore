@@ -27,12 +27,15 @@ class RoutingInfo extends Bundle {
 
 object RoutingInfo {
   def apply(srcAddr: UInt, srcPort: UInt,
-      dstAddr: UInt, dstPort: UInt, reqId: UInt): RoutingInfo = {
+      dstAddr: UInt, dstPort: UInt, reqId: UInt,
+      srcMac: Vec[UInt], dstMac: Vec[UInt]): RoutingInfo = {
     val info = new RoutingInfo
     info.srcAddr := srcAddr
     info.srcPort := srcPort
+    info.srcMac  := srcMac
     info.dstAddr := dstAddr
     info.dstPort := dstPort
+    info.dstMac  := dstMac
     info.reqId   := reqId
     info
   }
