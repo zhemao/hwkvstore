@@ -1,0 +1,9 @@
+echo $PBS_JOBID
+echo $PBS_JOBNAME
+echo $PBS_ARRAYID
+echo $PBS_O_HOST
+echo $whoami
+echo $HOST
+
+cat ../build/vlsi/icc-par/current-icc/reports/*
+grep -r -A5 $CONFIG ../src/main/scala/config/*
