@@ -10,6 +10,7 @@ class PacketFilter extends Module {
   val TagSize = params[Int]("tagsize")
   val BufferSize = params[Int]("bufsize")
   val AddrSize = log2Up(BufferSize)
+  val StreamMaxLenShift = params[Int]("streammaxlenshift")
 
   val io = new Bundle {
     val temac_rx = Stream(UInt(width = 8)).flip
@@ -40,17 +41,18 @@ class PacketFilter extends Module {
     m_start_stream :: m_finish :: m_start_skip ::
     m_srcaddr_start :: m_srcaddr :: m_dstaddr :: m_ip_end ::
     m_srcport_h :: m_srcport_l :: m_dstport_h :: m_dstport_l :: m_udp_end ::
-    rest) = Enum(Bits(), 36)
+    rest) = Enum(Bits(), 38)
   val (m_reqid_h :: m_reqid_l :: m_mc_udp_end ::
     m_magic :: m_opcode :: m_keylen_h :: m_keylen_l ::
     m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
     m_keydata_send :: m_keydata_read :: m_keydata_last ::
-    m_finish_defer :: Nil) = rest
+    m_finish_defer :: m_ul_read :: m_ul_stream :: Nil) = rest
   val m_state = Reg(init = m_idle)
 
   val mainWriter = StreamWriter(UInt(width = 8), 16)
   mainWriter.io.stream <> io.temac_rx
   mainWriter.io.ignore := ignore
+  val writeFinished = mainWriter.io.finished
 
   val pktCount = mainWriter.io.count
   val writeData = mainWriter.io.writeData
@@ -59,7 +61,8 @@ class PacketFilter extends Module {
   val mainBuffer = Module(new PacketBuffer(BufferSize))
   mainBuffer.io.writeData := writeData
   mainBuffer.io.writeEn := writeEn
-  mainBuffer.io.stream.valid := (m_state === m_start_stream || m_state === m_pkt_defer)
+  mainBuffer.io.stream.valid := (m_state === m_start_stream ||
+    m_state === m_pkt_defer || m_state === m_ul_stream)
   mainBuffer.io.stream.bits := pktLen
   mainBuffer.io.skip.valid := (m_state === m_start_skip)
   mainBuffer.io.skip.bits := pktLen
@@ -67,7 +70,7 @@ class PacketFilter extends Module {
   val rx_ready = (m_state != m_start_stream) && (m_state != m_start_skip) &&
                  (m_state != m_key_info) && (m_state != m_pkt_defer) &&
                  (m_state != m_keydata_send) && (m_state != m_keydata_last) &&
-                 (m_state != m_finish_defer) &&
+                 (m_state != m_finish_defer) && (m_state != m_ul_stream) &&
                  !mainBuffer.io.full
   mainWriter.io.enable := rx_ready
 
@@ -151,7 +154,7 @@ class PacketFilter extends Module {
         when (isIP) {
           m_state := m_ihl
         } .otherwise {
-          // figure out what to do here
+          m_state := m_ul_read
         }
       }
     }
@@ -387,6 +390,25 @@ class PacketFilter extends Module {
         m_state := m_idle
       }
     }
+    is (m_ul_read) {
+      val lowerPktCount = pktCount(StreamMaxLenShift - 1, 0)
+      when (writeFinished) {
+        pktLen := lowerPktCount
+        m_state := m_ul_stream
+      } .elsewhen (lowerPktCount === UInt(0)) {
+        pktLen := UInt(1 << StreamMaxLenShift)
+        m_state := m_ul_stream
+      }
+    }
+    is (m_ul_stream) {
+      when (mainBuffer.io.stream.ready) {
+        when (writeFinished) {
+          m_state := m_idle
+        } .otherwise {
+          m_state := m_ul_read
+        }
+      }
+    }
   }
 
   val (d_idle :: d_check :: d_stream :: d_skip :: d_resp :: Nil) = Enum(Bits(), 5)
@@ -457,7 +479,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     }
     isTrace = true
     if (ticks == timeout)
-      println(s"Error: timed out waiting for ${signal.name}")
+      throw new Exception(s"Error: timed out waiting for ${signal.name}")
   }
 
   def sendPacket(stream: StreamIO[UInt], packet: Array[Byte], key: String = null) {
@@ -513,7 +535,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   def recvPacket(stream: StreamIO[UInt], packet: Array[Byte]) {
     poke(stream.ready, 1)
     for (i <- 0 until packet.size) {
-      waitUntil(stream.valid, 10)
+      waitUntil(stream.valid, 100)
 
       val byte = packet(i)
       val word = if (byte < 0) (256 + byte.intValue) else byte.intValue
@@ -577,7 +599,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val srcPort = 0x1170
   val dstAddr = Array[Byte](5, 6, 7, 8)
   val dstPort = 0x1171
-  val badPacket = Array[Byte](0, 0, 0, 0)
+  val nonIpPacket = EthernetPacket(
+    DefaultDstMac, DefaultSrcMac, 0, Array[Byte](0, 0, 0, 0))
   val tcpPacket = IPv4Packet(TcpProtocol, srcAddr, dstAddr,
     Array[Byte](0, 1, 2, 3))
   val udpPacket = UdpPacket(srcAddr, srcPort, dstAddr, dstPort,
@@ -592,8 +615,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   poke(c.io.readready, 1)
 
-  //println("Sending bad packet")
-  //temacSendPacket(badPacket)
+  println("Sending non-IP packet")
+  temacSendPacket(nonIpPacket)
+
+  println("Receiving non-IP packet")
+  coreRecvPacket(nonIpPacket)
 
   println("Sending TCP packet")
   temacSendPacket(tcpPacket)

@@ -10,6 +10,7 @@ class PacketFilterConfig extends ChiselConfig {
       case "respcachesize" => 4096
       case "tagsize" => 4
       case "bufsize" => 65536
+      case "streammaxlenshift" => 5
     }
   }
 }

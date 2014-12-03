@@ -79,19 +79,25 @@ class StreamWriter[+T <: Data](gen: T, CountSize: Int) extends Module {
     val ignore = Bool(INPUT)
 
     val count = UInt(OUTPUT, CountSize)
+    val finished = Bool(OUTPUT)
   }
 
   val count = Reg(init = UInt(0, CountSize))
   val writeData = Reg(gen)
   val writeEn = Reg(init = Bool(false))
+  val finished = Reg(init = Bool(true))
 
   when (io.stream.valid && io.enable) {
     writeEn := !io.ignore
     writeData := io.stream.data
-    when (io.stream.last) {
-      count := UInt(0)
+    when (finished) {
+      count := UInt(1)
+      finished := Bool(false)
     } .otherwise {
       count := count + UInt(1)
+      when (io.stream.last) {
+        finished := Bool(true)
+      }
     }
   } .otherwise {
     writeEn := Bool(false)
@@ -101,6 +107,7 @@ class StreamWriter[+T <: Data](gen: T, CountSize: Int) extends Module {
   io.stream.ready := io.enable
   io.writeData := writeData
   io.writeEn := writeEn
+  io.finished := finished
 }
 
 object StreamWriter {
