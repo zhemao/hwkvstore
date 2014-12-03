@@ -3,7 +3,6 @@ package pktfilter
 import Chisel._
 import pktfilter.Constants._
 import pktfilter.ChecksumUtils._
-import scala.math.min
 
 class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   val io = new Bundle {
@@ -15,8 +14,12 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     val ready = Bool(OUTPUT)
   }
 
+  val EthHeaderLen = 14
   // IP header + UDP header + Memcached header
   val HeaderLen = 20 + 8 + 36
+
+  val ethHeaderIndex = Reg(UInt(width = log2Up(EthHeaderLen)))
+  val ethHeaderData = UInt(width = 8)
 
   val headerIndex = Reg(UInt(width = log2Up(HeaderLen)))
   val headerData = UInt(width = 8)
@@ -41,6 +44,29 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   val TTL = 100
 
   val IPHeaderSize = 20
+
+  switch (ethHeaderIndex) {
+    ethHeaderData := UInt(0)
+
+    // destination MAC address (src and dst switched)
+    is (UInt(0))  { ethHeaderData := io.pktRoute.srcMac(0) }
+    is (UInt(1))  { ethHeaderData := io.pktRoute.srcMac(1) }
+    is (UInt(2))  { ethHeaderData := io.pktRoute.srcMac(2) }
+    is (UInt(3))  { ethHeaderData := io.pktRoute.srcMac(3) }
+    is (UInt(4))  { ethHeaderData := io.pktRoute.srcMac(4) }
+    is (UInt(5))  { ethHeaderData := io.pktRoute.srcMac(5) }
+
+    // source MAC address
+    is (UInt(6))  { ethHeaderData := io.pktRoute.dstMac(0) }
+    is (UInt(7))  { ethHeaderData := io.pktRoute.dstMac(1) }
+    is (UInt(8))  { ethHeaderData := io.pktRoute.dstMac(2) }
+    is (UInt(9))  { ethHeaderData := io.pktRoute.dstMac(3) }
+    is (UInt(10)) { ethHeaderData := io.pktRoute.dstMac(4) }
+    is (UInt(11)) { ethHeaderData := io.pktRoute.dstMac(5) }
+
+    // EtherType
+    is (UInt(12)) { ethHeaderData := UInt(0x08) }
+  }
 
   switch(headerIndex) {
     // default value
@@ -161,8 +187,9 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
 
   val (s_idle :: s_ip_cs_start :: s_ip_cs_feed :: s_ip_cs_end ::
        s_udp_cs_start :: s_udp_cs_feed_head :: s_udp_cs_read_body ::
-       s_udp_cs_feed_body :: s_udp_cs_end :: s_send_header :: s_send_body ::
-       Nil) = Enum(Bits(), 11)
+       s_udp_cs_feed_body :: s_udp_cs_end :: 
+       s_send_eth_header :: s_send_header :: s_send_body ::
+       Nil) = Enum(Bits(), 12)
   val state = Reg(init = s_idle)
 
   val csCompute = Module(new ChecksumCompute(AddrSize))
@@ -175,7 +202,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
   csCompute.io.result.ready := (state === s_ip_cs_end) || (state === s_udp_cs_end)
 
   io.ready := (state === s_idle)
-  io.temac_tx.valid := (state === s_send_header) || (state === s_send_body)
+  io.temac_tx.valid := (state === s_send_eth_header) ||
+    (state === s_send_header) || (state === s_send_body)
   io.temac_tx.last := pktLast
   io.temac_tx.data := pktData
   io.resultData.ready :=
@@ -186,6 +214,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
       when (io.start) {
         pktLen := UInt(IPHeaderSize)
         headerIndex := UInt(0)
+        ethHeaderIndex := UInt(0)
         state := s_ip_cs_start
       }
     }
@@ -200,7 +229,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
       pktData := headerData
       headerIndex := headerIndex + UInt(1)
       // end of IP packet
-      when (headerIndex === UInt(IPHeaderSize)) {
+      when (headerIndex === pktLen) {
         state := s_ip_cs_end
       }
     }
@@ -251,11 +280,23 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     is (s_udp_cs_end) {
       when (csCompute.io.result.valid) {
         udpChecksum := csCompute.io.result.bits
-        state := s_send_header
-        pktData := headerData
+        pktData := ethHeaderData
+        ethHeaderIndex := ethHeaderIndex + UInt(1)
         pktLen := io.resLen
-        headerIndex := headerIndex + UInt(1)
         bodyIndex := UInt(0)
+        state := s_send_eth_header
+      }
+    }
+    is (s_send_eth_header) {
+      when (io.temac_tx.ready) {
+        when (ethHeaderIndex === UInt(EthHeaderLen)) {
+          pktData := headerData
+          headerIndex := headerIndex + UInt(1)
+          state := s_send_header
+        } .otherwise {
+          pktData := ethHeaderData
+          ethHeaderIndex := ethHeaderIndex + UInt(1)
+        }
       }
     }
     is (s_send_header) {
@@ -298,11 +339,16 @@ class ResponderTest(c: Responder) extends Tester(c) {
   val srcAddrInt = BigInt(Array[Byte](0) ++ srcaddr)
   val dstAddrInt = BigInt(Array[Byte](0) ++ dstaddr)
 
+  val srcMacInts = DefaultSrcMac.map(b => BigInt(Array(0.byteValue, b)))
+  val dstMacInts = DefaultDstMac.map(b => BigInt(Array(0.byteValue, b)))
+
   // remember that src and dst are reversed
   poke(c.io.pktRoute.dstAddr, srcAddrInt)
   poke(c.io.pktRoute.dstPort, srcport)
+  poke(c.io.pktRoute.dstMac, srcMacInts)
   poke(c.io.pktRoute.srcAddr, dstAddrInt)
   poke(c.io.pktRoute.srcPort, dstport)
+  poke(c.io.pktRoute.srcMac, dstMacInts)
   poke(c.io.pktRoute.reqId, 0)
   poke(c.io.resLen, result.length)
 
@@ -347,6 +393,8 @@ class ResponderTest(c: Responder) extends Tester(c) {
       ind += 1
     }
   }
+
+  dumpPacket(packet)
 }
 
 object ResponderMain {

@@ -14,4 +14,10 @@ object Constants {
 
   val UdpProtocol = 0x11
   val TcpProtocol = 0x6
+
+  val DefaultDstMac = Array[Byte](20, 10, 32, 11, 22, 13)
+  val DefaultSrcMac = Array[Byte](38, 13, 53, 28, 17, 52)
+
+  val IPv4EtherType = 0x0800
+  val IPv6EtherType = 0x86DD
 }

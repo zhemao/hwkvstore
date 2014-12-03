@@ -21,6 +21,8 @@ class RoutingInfo extends Bundle {
   val srcPort = UInt(width = 16)
   val dstPort = UInt(width = 16)
   val reqId   = UInt(width = 16)
+  val dstMac  = Vec.fill(6) { UInt(width = 8) }
+  val srcMac  = Vec.fill(6) { UInt(width = 8) }
 }
 
 object RoutingInfo {
