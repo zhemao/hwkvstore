@@ -74,3 +74,8 @@ dc-syn: $(vlsi-timestamp)
 
 icc-par: $(vlsi-timestamp)
 	make -C build/vlsi/icc-par SHELL=/bin/bash
+
+clean:
+	#cd build/vlsi/vcs-sim-rtl && make clean && cd ../../..
+	#cd build/vlsi/vcs-sim-gl-syn && make clean && cd ../../..	
+	rm -rf build/vlsi/generated-src/* build/emulator/generated-src/* target project csrc ucli.key
