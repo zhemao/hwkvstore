@@ -14,15 +14,15 @@ class BaseConfig extends ChiselConfig {
   }
   override val topDefinitions:World.TopDefs = {
     (pname,site,here) => pname match {
-      case "wordsize" => Knob("wordsize")
+      case "wordsize" => Knob("wordsize") // wordsize for compare
       case "keysize"  => 256
-      case "numkeys"  => Knob("numkeys")
-      case "valcachesize" => Knob("valcachesize")
-      case "banksize" => Knob("banksize")
+      case "numkeys"  => Knob("numkeys") // don't modify
+      case "valcachesize" => Knob("valcachesize") // don't modify
+      case "banksize" => Knob("banksize") // size of banks
       case "tagsize" => 4
       case "countsize" => 4
-      case "maxfanin" => Knob("maxfanin")
-      case "bankmems" => Knob("bankmems")
+      case "maxfanin" => Knob("maxfanin") // banks decoded per cycle
+      case "bankmems" => Knob("bankmems") // banking on/off, keep true
     }
   }
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
@@ -31,6 +31,41 @@ class BaseConfig extends ChiselConfig {
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024),
     ex => isPowerOfTwo(ex[Int]("maxfanin"), 4, 32),
     ex => isPowerOfTwo(ex[Int]("banksize"), 256, 1024)
+  )
+}
+
+
+// TODO: extend Base
+class DSEConfig extends ChiselConfig {
+  private def isPowerOfTwo(num: Ex[Int], start: Int, end: Int) = {
+    var expr: Ex[Boolean] = ExEq(num, ExLit(start))
+    var check = 2 * start
+    while (check <= end) {
+      expr = ExOr(expr, ExEq(num, ExLit(check)))
+      check = 2 * check
+    }
+    expr
+  }
+  override val topDefinitions:World.TopDefs = {
+    (pname,site,here) => pname match {
+      case "wordsize" => Knob("wordsize") // wordsize for compare
+      case "keysize"  => 256
+      case "numkeys"  => Knob("numkeys") // don't modify
+      case "valcachesize" => Knob("valcachesize") // don't modify
+      case "banksize" => Knob("banksize") // size of banks
+      case "tagsize" => 4
+      case "countsize" => 4
+      case "maxfanin" => Knob("maxfanin") // banks decoded per cycle
+      case "bankmems" => Knob("bankmems") // banking on/off, keep true
+    }
+  }
+  override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
+    ex => ex[Int]("wordsize") === 32,
+    ex => ex[Int]("numkeys") === 64,
+    ex => ex[Int]("valcachesize") === 32 * 1024,
+    ex => ex[Int]("maxfanin") === 16,
+    ex => ex[Int]("banksize") === 256,
+    ex => ex[Int]("bankmems") === true
   )
 }
 

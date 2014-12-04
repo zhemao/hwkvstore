@@ -1,7 +1,19 @@
+src_path = src/main/scala
+
+MODEL := KeyValueStoreMain
+SRC := $(src_path)/*.scala
 PROJ := kvstore
+
 VLSI_CONFIG ?= VlsiConfig
 EMU_CONFIG ?= EmulatorConfig
 FPGA_CONFIG ?= FpgaConfig
+
+DCONFIG := DSEConfig
+CONFIG ?= DSEConfig
+
+
+JSETTINGS = IclusterSettings
+JSETTINGS ?= DefaultSettings
 
 VLSI_OUT_DIR := build/vlsi/generated-src
 vlsi_mem_gen := build/sram/vlsi_mem_gen

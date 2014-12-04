@@ -4,8 +4,8 @@ base_dir = ..
 jh_dir   = .
 sim_dir  = .
 config_dir := src/main/scala/config
-JACK_SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar ~cs250/install/sbt/sbt-launch.jar
-PROJ_SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar ~cs250/install/sbt/sbt-launch.jar
+JACK_SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar ~cs250/install/sbt/sbt-launch.jar -DchiselVersion="2.3-SNAPSHOT"
+PROJ_SBT := java -Xmx2048M -Xss8M -XX:MaxPermSize=128M -jar ~cs250/install/sbt/sbt-launch.jar -DchiselVersion="2.3-SNAPSHOT"
 
 include $(base_dir)/Makefrag
 # PROJ,CONFIG

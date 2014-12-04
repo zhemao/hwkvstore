@@ -2,9 +2,9 @@ package jackhammer
 
 class IclusterSettings extends HammerSettings {
   val RISCV = "/home/ff/cs250/install/riscv"
-  val PROJ = "sha3"
-  val root = "sha3"
-  val user = "cs250-jack"
+  val PROJ = "kvstore"
+  val root = "kvstore"
+  val user = "cs250-af"
   val projectDirectory = ".."
   val baseShared = "/scratch/" + user + "/hammer"
   val baseLocal =  "/scratch/" + user + "/hammer"
