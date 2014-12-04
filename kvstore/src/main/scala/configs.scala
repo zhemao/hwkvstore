@@ -59,14 +59,25 @@ class DSEConfig extends ChiselConfig {
       case "bankmems" => Knob("bankmems") // banking on/off, keep true
     }
   }
+
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
-    ex => ex[Int]("wordsize") === 32,
-    ex => ex[Int]("numkeys") === 64,
-    ex => ex[Int]("valcachesize") === 32 * 1024,
-    ex => ex[Int]("maxfanin") === 16,
-    ex => ex[Int]("banksize") === 256,
-    ex => ex[Int]("bankmems") === true
+    ex => isPowerOfTwo(ex[Int]("wordsize"), 32, 32),
+    ex => isPowerOfTwo(ex[Int]("numkeys"), 64, 64),
+    ex => isPowerOfTwo(ex[Int]("valcachesize"), 32*1024, 32*1024),
+    ex => isPowerOfTwo(ex[Int]("maxfanin"), 16, 16),
+    ex => isPowerOfTwo(ex[Int]("banksize"), 256, 256)
   )
+
+  override val knobValues:Any=>Any = {
+    case "wordsize" => 32
+    case "numkeys" => 64
+    case "valcachesize" => 32 * 1024
+    case "maxfanin" => 16
+    case "bankmems" => true
+    case "banksize" => 256
+  }
+
+
 }
 
 class VlsiConfig extends BaseConfig {
