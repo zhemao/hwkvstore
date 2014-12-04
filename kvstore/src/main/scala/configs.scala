@@ -1,6 +1,7 @@
 package kvstore
 
 import Chisel._
+import Chisel.Implicits._
 
 class BaseConfig extends ChiselConfig {
   private def isPowerOfTwo(num: Ex[Int], start: Int, end: Int) = {
@@ -65,7 +66,8 @@ class DSEConfig extends ChiselConfig {
     ex => isPowerOfTwo(ex[Int]("numkeys"), 64, 64),
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 32*1024, 32*1024),
     ex => isPowerOfTwo(ex[Int]("maxfanin"), 16, 16),
-    ex => isPowerOfTwo(ex[Int]("banksize"), 256, 256)
+    ex => isPowerOfTwo(ex[Int]("banksize"), 256, 256),
+    ex => ex[Boolean]("bankmems") === true
   )
 
   override val knobValues:Any=>Any = {
