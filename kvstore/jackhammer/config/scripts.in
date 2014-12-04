@@ -1,7 +1,0 @@
-# Example Script File: Paths should be as if run in the hammer directory
-cpp -exe ../scripts/cpp/ex.sh -exeReg ERROR -res ../scripts/cpp/re.sh -resReg ERROR
-cmr -exe ../scripts/cmr/ex.sh -exeReg ERROR -res ../scripts/cmr/re.sh -resReg ERROR
-ver -exe ../scripts/ver/ex.sh -exeReg ERROR -res ../scripts/ver/re.sh -resReg ERROR
-vcs -exe ../scripts/vcs/ex.sh -exeReg ERROR -res ../scripts/vcs/re.sh -resReg ERROR
-dcs -exe ../scripts/dcs/ex.sh -exeReg ERROR -res ../scripts/dcs/re.sh -resReg ERROR
-

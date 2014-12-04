@@ -1,8 +1,0 @@
-# Base Input File
-SHARED /nscratch/adamiz/hammer-rocket
-ROOT rocket-ref-chip
-LOCAL /scratch/adamiz/hammer-rocket
-RUN run0.idx
-RISCV /nscratch/adamiz/riscv-install
-QSUB parent/qsub.sh
-
