@@ -18,6 +18,8 @@ ifeq ($(PROJ),referencechip)
 	cd $(base_dir) && $(PROJ_SBT) "project $(PROJ)" "elaborate $(MODEL) $(CHISEL_ARGS) --configCollect $(PROJ).$*"
 else
 	cd $(base_dir) && $(PROJ_SBT) "runMain $(PROJ).$(MODEL) $(MODEL_ARGS) $(CHISEL_ARGS) --configCollect $(PROJ).$*"
+	mv $(base_dir)/$(config_dir)/$(DCONFIG).cst $(base_dir)/$(config_dir)/$(PROJ).$(DCONFIG).cst
+	mv $(base_dir)/$(config_dir)/$(DCONFIG).knb $(base_dir)/$(config_dir)/$(PROJ).$(DCONFIG).knb
 endif
 
 $(base_dir)/$(config_dir)/$(PROJ).$(addsuffix .scala, %): $(base_dir)/$(config_dir)/$(PROJ).$(addsuffix .cst, %)
