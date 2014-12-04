@@ -53,7 +53,8 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
   }
 
   val (s_wait :: s_delay_len :: s_check_len ::
-    s_delay_data :: s_check_data :: s_handoff :: Nil) = Enum(UInt(), 6)
+    s_delay_data :: s_check_data :: s_cmp_count :: s_check_count ::
+    s_handoff :: Nil) = Enum(UInt(), 8)
   val state = Reg(init = s_wait)
 
   val hashFound = Reg(Bool())
@@ -73,13 +74,17 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
 
   val NumCounts = 1 << HashSize
 
-  val counts = Vec.fill(NumCounts) { Reg(init = UInt(0, HashSize)) }
+  val counts = Vec.fill(NumCounts) { Reg(init = UInt(0, TagSize)) }
 
   when (io.resetCounts) {
     for (i <- 0 until NumCounts) {
       counts(i) := UInt(0)
     }
   }
+
+  val hashCount1 = Reg(init = UInt(0, TagSize))
+  val hashCount2 = Reg(init = UInt(0, TagSize))
+  val curCount = Mux(checkFirst, hashCount1, hashCount2)
 
   switch (state) {
     is (s_wait) {
@@ -91,12 +96,12 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       }
     }
     is (s_delay_len) {
+      hashCount1 := counts(curInfo.hash1)
+      hashCount2 := counts(curInfo.hash2)
       state := s_check_len
     }
     is (s_check_len) {
-      // when findAvailable is true, the tag stands in for the weight
-      val canReplace = io.findAvailable && 
-        (io.lenData === UInt(0) || counts(curHash) < curInfo.tag)
+      val canReplace = io.findAvailable && io.lenData === UInt(0)
       when (canReplace) {
         hashFound := Bool(true)
         state := s_handoff
@@ -107,6 +112,8 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       } .elsewhen (checkFirst) {
         checkFirst := Bool(false)
         state := s_delay_len
+      } .elsewhen (io.findAvailable) {
+        state := s_cmp_count
       } .otherwise {
         state := s_handoff
       }
@@ -124,6 +131,8 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
         when (checkFirst) {
           checkFirst := Bool(false)
           state := s_delay_len
+        } .elsewhen (io.findAvailable) {
+          state := s_cmp_count
         } .otherwise {
           state := s_handoff
         }
@@ -134,6 +143,18 @@ class KeyCompare(HashSize: Int, WordSize: Int, KeySize: Int, TagSize: Int)
       } .otherwise {
         index := index + UInt(1)
       }
+    }
+    is (s_cmp_count) {
+      when (hashCount1 < hashCount2) {
+        checkFirst := Bool(true)
+      } .otherwise {
+        checkFirst := Bool(false)
+      }
+      state := s_check_count
+    }
+    is (s_check_count) {
+      hashFound := (curInfo.tag > curCount)
+      state := s_handoff
     }
     is (s_handoff) {
       when (io.hashOut.ready) {
@@ -316,9 +337,15 @@ class KeyCompareTest(c: KeyCompareSetup) extends Tester(c) {
   checkHashes(1, 2, 2)
 
   poke(c.io.findAvailable, 1)
+  // check that we find the empty bucket to be available
   checkHashes(1, 3, 1)
   checkHashes(2, 3, 1)
-  checkHashes(1, 3, 0, 15)
+  // check that we don't find any available ones when both keys are occupied
+  checkHashes(1, 2, 2)
+
+  writeCurKey(key3)
+  // check that we get back the one with lower weight (i.e. not 0)
+  checkHashes(1, 0, 0, 15)
 }
 
 object KeyCompareMain {
