@@ -36,6 +36,14 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize))
   }
 
+  io.rocc.interrupt := Bool(false)
+  io.rocc.imem.acquire.valid := Bool(false)
+  io.rocc.imem.grant.ready := Bool(true)
+  io.rocc.imem.finish.valid := Bool(false)
+  io.rocc.iptw.req.valid := Bool(false)
+  io.rocc.dptw.req.valid := Bool(false)
+  io.rocc.pptw.req.valid := Bool(false)
+
   val writemode = Reg(init = Bool(true))
   io.writemode := writemode
 
