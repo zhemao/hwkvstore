@@ -2,7 +2,7 @@ package pktfilter
 
 import Chisel._
 
-class PacketBuffer(BufferSize: Int) extends Module {
+class PacketBuffer(val BufferSize: Int) extends Module {
   val AddrSize = log2Up(BufferSize)
   val io = new Bundle {
     val readData = Stream(UInt(width = 8))
@@ -138,12 +138,23 @@ class PacketBufferTest(c: PacketBuffer) extends Tester(c) {
   expect(c.io.readData.data, packet(packet.size - 1))
   expect(c.io.readData.last, 1)
   step(1)
-  expect(c.io.skip.ready, 1)
+  poke(c.io.readData.ready, 0)
+
+  expect(c.io.empty, 1)
+  poke(c.io.writeEn, 1)
+  for (i <- 0 until c.BufferSize - 1) {
+    expect(c.io.full, 0)
+    poke(c.io.writeData, rnd.nextInt & 0xff)
+    step(1)
+  }
+  poke(c.io.writeEn, 0)
+  step(1)
+  expect(c.io.full, 1)
 }
 
 object PacketBufferMain {
   def main(args: Array[String]) {
-    chiselMain.run(args, () => new PacketBuffer(255),
+    chiselMain.run(args, () => new PacketBuffer(256),
       (c: PacketBuffer) => new PacketBufferTest(c))
   }
 }
