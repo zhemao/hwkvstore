@@ -23,7 +23,8 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
   val InputByteShift = log2Up(BytesPerInputWord)
 
   val (s_idle :: s_stream_key_wait :: s_shift_bytes ::
-    s_req_data :: s_proc_resp :: s_finish :: Nil) = Enum(Bits(), 6)
+    s_req_data :: s_proc_resp :: s_finish :: s_init_shift ::
+    Nil) = Enum(Bits(), 7)
   val state = Reg(init = s_idle)
   val outputMask = Reg(Bits(width = 2))
 
@@ -31,12 +32,13 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
   val bytesread = Reg(UInt(width = ValAddrSize))
   val readaddr = Reg(UInt(width = coreDataBits))
   val writeaddr = Reg(UInt(width = ValAddrSize))
+  val initshift = Reg(UInt(width = InputByteShift + 3))
 
   val keyDataValid = Reg(init = Bool(false))
   val keyDataBits = Reg(UInt(width = 8))
 
   val word = Reg(Bits(width = coreDataBits))
-  val byteOff = bytesread(InputByteShift - 1, 0)
+  val byteOff = Reg(UInt(width = InputByteShift))
 
   io.mem.req.valid := (state === s_req_data)
   io.mem.req.bits.addr := readaddr
@@ -59,7 +61,12 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
   switch (state) {
     is (s_idle) {
       when (io.cmd.valid) {
-        readaddr := io.cmd.bits.readstart
+        readaddr := Cat(
+          io.cmd.bits.readstart(coreDataBits - 1, InputByteShift),
+          UInt(0, InputByteShift))
+        initshift := Cat(
+          io.cmd.bits.readstart(InputByteShift - 1, 0),
+          UInt(0, 3))
         writeaddr := io.cmd.bits.writestart
         len := io.cmd.bits.len
         bytesread := UInt(0)
@@ -84,6 +91,7 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
     is (s_shift_bytes) {
       bytesread := bytesread + UInt(1)
       writeaddr := writeaddr + UInt(1)
+      byteOff := byteOff + UInt(1)
       word := Cat(UInt(0, 8), word(coreDataBits - 1, 8))
       when (bytesread === len - UInt(1)) {
         state := s_finish
@@ -100,8 +108,19 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
     is (s_proc_resp) {
       when (io.mem.resp.valid) {
         word := io.mem.resp.bits.data
-        state := s_shift_bytes
+        when (initshift === UInt(0)) {
+          byteOff := UInt(0)
+          state := s_shift_bytes
+        } .otherwise {
+          state := s_init_shift
+        }
       }
+    }
+    is (s_init_shift) {
+      word := word >> initshift
+      byteOff := initshift(InputByteShift + 2, 3)
+      initshift := UInt(0)
+      state := s_shift_bytes
     }
     is (s_finish) {
       state := s_idle
@@ -121,13 +140,13 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
 
   val key = "asdkfjqwekjfasdkfj"
-  val keyWords = messToWords(key, 8)
+  val keyWords = messToWords(key, 8, 4)
 
   memory.store_data(0, keyWords)
 
   wire_poke(c.io.cmd.valid, 1)
   wire_poke(c.io.cmd.bits.action, 0)
-  wire_poke(c.io.cmd.bits.readstart, 0)
+  wire_poke(c.io.cmd.bits.readstart, 4)
   wire_poke(c.io.cmd.bits.writestart, 0)
   wire_poke(c.io.cmd.bits.len, key.length)
   takestep()

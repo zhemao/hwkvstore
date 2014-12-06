@@ -81,8 +81,8 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
   val key = "asdkfjqwekjfasdkfj"
   val value = "qpwoinfasw9qr09q23jasknvasdfjksjqefksajfk"
-  val keyWords = messToWords(key, 8)
-  val valueWords = messToWords(value, 8)
+  val keyWords = messToWords(key, 8, 4)
+  val valueWords = messToWords(value, 8, 2)
 
   memory.store_data(0, keyWords)
   memory.store_data(256, valueWords)
@@ -91,7 +91,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
 
   println("Testing delete key")
   val delKey = TestInst(1, 0, 1, 2, true, true, true)
-  Cmd_IHandler.inputs.enqueue(TestCmd(delKey, 0, key.length))
+  Cmd_IHandler.inputs.enqueue(TestCmd(delKey, 4, key.length))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
     memory.process()
@@ -108,7 +108,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
 
   println("Reserving key")
   val resKey = TestInst(2, 0, 1, 2, true, true, true)
-  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
+  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 4, key.length))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
     memory.process()
@@ -126,7 +126,7 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
 
   Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, 4))
   Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 256))
+  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 258))
   Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
