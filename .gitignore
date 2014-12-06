@@ -1,4 +1,5 @@
 *.o
 *.rv
 *.pyc
+*.hex
 /reference/test
