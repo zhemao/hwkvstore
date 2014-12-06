@@ -1,3 +1,8 @@
+  .section .rodata
+key:
+  .string "a key"
+value:
+  .string "a value"
 
   .text
   .global _start
@@ -10,7 +15,8 @@ _start:
   // switch to write mode
   custom0 0, 1, 0, 0
   // reserve key and get hash value
-  li t0, 0x2094
+  lui t0, %hi(key)
+  addi t0, t0, %lo(key)
   li t1, 5
   custom0 t2, t0, t1, 2
   // assoc addr 0
@@ -20,7 +26,8 @@ _start:
   li t0, 7
   custom0 0, t2, t0, 4
   // write value
-  li t0, 0x209a
+  lui t0, %hi(value)
+  addi t0, t0, %lo(value)
   custom0 0, t2, t0, 5
   // switch to read mode
   custom0 0, 0, 0, 0
@@ -35,6 +42,16 @@ _start:
   nop
   nop
   nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
+  nop
 
 exception:
   csrr t0, epc
@@ -42,15 +59,3 @@ exception:
   csrw epc, t0
   csrr t1, cause
   sret
-
-  nop
-  nop
-  nop
-  nop
-  nop
-  nop
-
-key:
-  .string "a key"
-value:
-  .string "a value"
