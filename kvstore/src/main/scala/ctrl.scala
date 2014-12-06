@@ -118,6 +118,8 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val AddrLookupDelay = 2
   val delayCount = Reg(UInt(width = log2Up(AddrLookupDelay)))
 
+  io.rocc.busy := (state != s_wait)
+
   switch (state) {
     is (s_wait) {
       setLen := Bits("b000")
