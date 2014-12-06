@@ -45,7 +45,7 @@ class MemoryHandler(ValAddrSize: Int, KeyAddrSize: Int)
   io.mem.req.bits.kill := Bool(false)
   io.mem.req.bits.typ := MT_D
   io.mem.req.bits.cmd := M_XRD
-  io.mem.req.bits.phys := Bool(true)
+  io.mem.req.bits.phys := Bool(params[Boolean]("physaddr"))
 
   val shifting = (state === s_shift_bytes)
 
@@ -187,8 +187,7 @@ class MemoryHandlerTest(c: MemoryHandler) extends AdvTester(c) {
 
 object MemoryHandlerMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => Module(new MemoryHandler(6, 5))) {
-      c => new MemoryHandlerTest(c)
-    }
+    chiselMain.run(args, () => new MemoryHandler(6, 5),
+      (c: MemoryHandler) => new MemoryHandlerTest(c))
   }
 }

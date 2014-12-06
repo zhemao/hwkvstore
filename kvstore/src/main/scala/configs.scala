@@ -23,6 +23,7 @@ class BaseConfig extends ChiselConfig {
       case "countsize" => 4
       case "maxfanin" => Knob("maxfanin")
       case "bankmems" => Knob("bankmems")
+      case "physaddr" => Knob("physaddr")
     }
   }
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
@@ -42,6 +43,7 @@ class VlsiConfig extends BaseConfig {
     case "maxfanin" => 16
     case "bankmems" => true
     case "banksize" => 256
+    case "physaddr" => false
   }
 }
 
@@ -53,6 +55,7 @@ class EmulatorConfig extends BaseConfig {
     case "maxfanin" => 32
     case "bankmems" => true
     case "banksize" => 1024
+    case "physaddr" => true
   }
 }
 
@@ -64,5 +67,6 @@ class FpgaConfig extends BaseConfig {
     case "maxfanin" => 32
     case "bankmems" => false
     case "banksize" => 1024
+    case "physaddr" => false
   }
 }
