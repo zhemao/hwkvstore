@@ -1,7 +1,10 @@
 CC=riscv64-unknown-elf-gcc
 CFLAGS=-Wall -O2
 
-all: switch-mode.rv set-key.rv
+all: switch-mode.rv set-key.rv test.rv
+
+test.rv: test.S
+	$(CC) -nostdlib -T ../../riscv-tools/riscv-tests/env/p/link.ld $< -o $@
 
 switch-mode.rv: switch-mode.c
 	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
