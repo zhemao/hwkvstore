@@ -56,18 +56,18 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val resetCounts = Reg(init = Bool(false))
   io.resetCounts := resetCounts
 
-  val (s_wait :: s_switch ::
+  val (s_init :: s_wait :: s_switch ::
     s_send_info :: s_stream_key :: s_gethash ::
     s_reskey_setlen :: s_reskey_start_copy :: s_reskey_end_copy ::
     s_waitaddrlen :: s_getaddrlen ::
     s_stream_value :: s_stream_value_finish ::
-    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 14)
+    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 15)
 
-  val state = Reg(init = s_wait)
+  val state = Reg(init = s_init)
   val found_state = Reg(init = s_wait)
 
   val action = Reg(Bits(width = ActionSize))
-  val len = Reg(UInt(width = coreDataBits))
+  val len = Reg(init = UInt(0, coreDataBits))
   val keytag = Reg(UInt(width = TagSize))
   val readstart = Reg(UInt(width = coreDataBits))
   val writestart = Reg(UInt(width = ValAddrSize))
@@ -86,9 +86,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   memhandler.io.cmd.bits.writestart := writestart
   memhandler.io.cmd.bits.action := action
 
-  val hash = Reg(UInt(width = HashSize))
+  val hash = Reg(init = UInt(0, HashSize))
   val addrLenData = Reg(new AddrLenPair(ValAddrSize))
-  val setLen = Reg(init = Bits(width = 3))
+  val setLen = Reg(init = Bits("b001", 3))
 
   io.addrLenReadEn := (state === s_waitaddrlen)
   io.addrLenAddr := hash
@@ -120,7 +120,17 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
 
   io.rocc.busy := (state != s_wait)
 
+  val MaxHash = (1 << HashSize) - 1
+
   switch (state) {
+    is (s_init) {
+      when (hash === UInt(MaxHash)) {
+        setLen := Bits("b000")
+        state := s_wait
+      } .otherwise {
+        hash := hash + UInt(1)
+      }
+    }
     is (s_wait) {
       setLen := Bits("b000")
       resetCounts := Bool(false)
