@@ -16,3 +16,6 @@ checksum-test:
 
 buffer-test:
 	$(SBT) "run-main $(PROJ).PacketBufferMain $(TEST_FLAGS)"
+
+packet-test:
+	$(SBT) "run-main $(PROJ).PacketTestMain $(TEST_FLAGS)"

@@ -13,3 +13,6 @@ class PacketFilterConfig extends ChiselConfig {
     }
   }
 }
+
+class CombinedConfig extends ChiselConfig(
+  new PacketFilterConfig ++ new kvstore.EmulatorConfig)

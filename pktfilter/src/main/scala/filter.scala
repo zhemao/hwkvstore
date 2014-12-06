@@ -51,8 +51,8 @@ class PacketFilter extends Module {
   val mainWriter = StreamWriter(UInt(width = 8), 16)
   mainWriter.io.stream <> io.temac_rx
   mainWriter.io.ignore := ignore
-  val writeFinished = mainWriter.io.finished
 
+  val writeFinished = mainWriter.io.finished
   val pktCount = mainWriter.io.count
   val writeData = mainWriter.io.writeData
   val writeEn = mainWriter.io.writeEn
