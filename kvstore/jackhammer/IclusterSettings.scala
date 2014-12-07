@@ -22,8 +22,20 @@ class IclusterSettings extends HammerSettings {
                           "dc" -> (projectDirectory + "/scripts/dc.pa"),
                           "icc" -> (projectDirectory + "/scripts/icc.pa"))
 
-  val qors = List("cpp")//,"vcs","dc","icc")
-  val designs = List("DefaultConfig8","DefaultConfig9","DefaultConfig10","DefaultConfig11")
+  val qors = List("cpp","dc","icc")
+  val designs = List("DSEConfig0",
+                    "DSEConfig1",
+                    "DSEConfig2",
+                    "DSEConfig3",
+                    "DSEConfig4",
+                    "DSEConfig5",
+                    "DSEConfig6",
+                    "DSEConfig7",
+                    "DSEConfig8",
+                    "DSEConfig9",
+                    "DSEConfig10",
+                    "DSEConfig11")
+
   //val designs = List("DefaultConfig8","DefaultConfig9","DefaultConfig10","DefaultConfig11",
   //"DefaultConfig0","DefaultConfig2","DefaultConfig4","DefaultConfig6",
   //"DefaultConfig1","DefaultConfig3","DefaultConfig5","DefaultConfig7")//,"DefaultConfig4","DefaultConfig5")

@@ -51,8 +51,8 @@ class DSEConfig extends ChiselConfig {
     (pname,site,here) => pname match {
       case "wordsize" => Knob("wordsize") // wordsize for compare
       case "keysize"  => 256
-      case "numkeys"  => Knob("numkeys") // don't modify
-      case "valcachesize" => Knob("valcachesize") // don't modify
+      case "numkeys"  => 64 // don't modify
+      case "valcachesize" => 32*1024 // don't modify
       case "banksize" => Knob("banksize") // size of banks
       case "tagsize" => 4
       case "countsize" => 4
@@ -62,11 +62,9 @@ class DSEConfig extends ChiselConfig {
   }
 
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
-    ex => isPowerOfTwo(ex[Int]("wordsize"), 32, 32),
-    ex => isPowerOfTwo(ex[Int]("numkeys"), 64, 64),
-    ex => isPowerOfTwo(ex[Int]("valcachesize"), 32*1024, 32*1024),
-    ex => isPowerOfTwo(ex[Int]("maxfanin"), 16, 16),
-    ex => isPowerOfTwo(ex[Int]("banksize"), 256, 256),
+    ex => isPowerOfTwo(ex[Int]("wordsize"), 8, 32),
+    ex => isPowerOfTwo(ex[Int]("maxfanin"), 8, 16),
+    ex => isPowerOfTwo(ex[Int]("banksize"), 128, 256),
     ex => ex[Boolean]("bankmems") === true
   )
 
