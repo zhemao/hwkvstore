@@ -27,6 +27,10 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val BankMems = params[Boolean]("bankmems")
   val BankSize = params[Int]("banksize")
 
+  val (s_wait :: s_notfound :: s_wait_lookup :: s_lookup :: s_notify ::
+       s_delay :: s_stream :: Nil) = Enum(UInt(), 7)
+  val state = Reg(init = s_wait)
+
   val cacheMem = if (BankMems && BankSize != CacheSize) {
     Module(new BankedMem(8, BankSize, CacheSize / BankSize))
   } else {
@@ -34,7 +38,8 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   }
   val cacheAddr = Reg(UInt(width = AddrSize))
   val cacheData = cacheMem.io.readData
-  val cacheReadEn = Reg(init = Bool(false))
+  val cacheReadEn = (state === s_delay) ||
+    (state === s_stream && io.resultData.ready)
 
   cacheMem.io.readAddr := cacheAddr
   cacheMem.io.readEn   := cacheReadEn
@@ -74,10 +79,6 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val tag = Reg(UInt(width = TagSize))
   val len = Reg(UInt(width = AddrSize))
 
-  val (s_wait :: s_notfound :: s_wait_lookup :: s_lookup :: s_notify ::
-       s_delay :: s_stream :: Nil) = Enum(UInt(), 7)
-  val state = Reg(init = s_wait)
-
   val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
 
   switch (state) {
@@ -115,12 +116,10 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
       when (io.resultInfo.ready) {
         state := s_delay
         delayCount := UInt(MemReadDelay - 1)
-        cacheReadEn := Bool(true)
       }
     }
     is (s_delay) {
       cacheAddr := cacheAddr + UInt(1)
-      cacheReadEn := Bool(true)
 
       when (delayCount === UInt(0)) {
         state := s_stream
@@ -130,14 +129,11 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
       }
     }
     is (s_stream) {
-      cacheReadEn := Bool(false)
       when (io.resultData.ready) {
         when (len === UInt(0)) {
           state := s_wait
-          cacheReadEn := Bool(false)
         } .otherwise {
           cacheAddr := cacheAddr + UInt(1)
-          cacheReadEn := Bool(true)
           len := len - UInt(1)
         }
       }
@@ -195,6 +191,12 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
     expect(c.io.resultData.valid, 1)
     expect(c.io.resultData.bits, byte)
     step(1)
+    val delay = rnd.nextInt(10)
+    if (delay > 0) {
+      poke(c.io.resultData.ready, 0)
+      step(delay)
+      poke(c.io.resultData.ready, 1)
+    }
   }
 
   expect(c.io.resultData.valid, 0)

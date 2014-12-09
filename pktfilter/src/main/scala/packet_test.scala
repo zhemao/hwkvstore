@@ -55,15 +55,15 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
   val key = "this key"
   val value = "this is the value"
-  val keyWords = messToWords(key, 8)
-  val valueWords = messToWords(value, 8)
+  val keyWords = messToWords(key, 8, 3)
+  val valueWords = messToWords(value, 8, 1)
 
   memory.store_data(0, keyWords)
   memory.store_data(256, valueWords)
 
   println("Reserving key")
   val resKey = TestInst(2, 0, 1, 2, true, true, true)
-  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
+  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 3, key.length))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
     memory.process()
@@ -80,7 +80,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
 
   Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, 0))
   Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 256))
+  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 257))
   Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
 
   until (Cmd_IHandler.isIdle && !isBusy, 450) {
@@ -119,6 +119,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
 
   wire_poke(c.io.temac_tx.ready, 0)
   assert(response.size > 0, "Didn't get a response")
+  dumpPacket(response.map(w => w.byteValue).toArray)
 
   until(peek(c.io.temac_rx.ready) == 1, 450) {}
 
