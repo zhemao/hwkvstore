@@ -560,10 +560,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   val nonIpPacket = EthernetPacket(
     DefaultDstMac, DefaultSrcMac, 0x1124,
     Array.fill(36) { (rnd.nextInt.byteValue & 0xff).byteValue })
+  // add some extra zeros onto the end to test robustness of state machine
   val tcpPacket = IPv4Packet(TcpProtocol, srcAddr, dstAddr,
-    Array[Byte](0, 1, 2, 3))
+    Array[Byte](0, 1, 2, 3)) ++ Array[Byte](0, 0)
   val udpPacket = UdpPacket(srcAddr, srcPort, dstAddr, dstPort,
-    Array[Byte](0, 1, 2, 3))
+    Array[Byte](0, 1, 2, 3)) ++ Array[Byte](0, 0, 0, 0)
   val mcKey = "this is a key"
   val mcPacket = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort, mcKey, 1)
   val ipv6Packet = MemcachedGet(srcAddr, srcPort, dstAddr, dstPort,
