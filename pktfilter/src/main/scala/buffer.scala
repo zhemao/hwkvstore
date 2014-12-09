@@ -44,10 +44,14 @@ class PacketBuffer(val BufferSize: Int) extends Module {
       when (io.readData.ready) {
         when (readCount === UInt(0)) {
           state := r_wait
+        } .elsewhen (readValid) {
+          readData := mem(readHead)
+          readCount := readCount - UInt(1)
+          readLast := readCount === UInt(1)
+          readHead := readHead + UInt(1)
         } .otherwise {
           state := r_fetch
         }
-        readHead := readHead + UInt(1)
       }
     }
     is (r_fetch) {
@@ -55,6 +59,7 @@ class PacketBuffer(val BufferSize: Int) extends Module {
         readData := mem(readHead)
         readCount := readCount - UInt(1)
         readLast := readCount === UInt(1)
+        readHead := readHead + UInt(1)
         state := r_send
       }
     }
@@ -110,7 +115,7 @@ class PacketBufferTest(c: PacketBuffer) extends Tester(c) {
     expect(c.io.readData.valid, 1)
     expect(c.io.readData.data, packet(i))
     expect(c.io.readData.last, 0)
-    step(2)
+    step(1)
   }
 
   poke(c.io.readData.ready, 0)
@@ -131,7 +136,7 @@ class PacketBufferTest(c: PacketBuffer) extends Tester(c) {
     expect(c.io.readData.valid, 1)
     expect(c.io.readData.data, packet(i))
     expect(c.io.readData.last, 0)
-    step(2)
+    step(1)
   }
 
   expect(c.io.readData.valid, 1)
