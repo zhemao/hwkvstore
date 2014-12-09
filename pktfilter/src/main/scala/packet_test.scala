@@ -35,7 +35,7 @@ class PacketTestSetup extends Module {
 }
 
 class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
-  val pktFile = getClass.getResourceAsStream("/mc-udp-pkt.raw")
+  var pktFile = getClass.getResourceAsStream("/mc-udp-pkt.raw")
   var byte = pktFile.read()
 
   val response = new ArrayBuffer[Int]()
@@ -100,6 +100,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     byte = nextbyte
   }
 
+  wire_poke(c.io.temac_rx.last, 0)
   wire_poke(c.io.temac_rx.valid, 0)
 
   pktFile.close()
@@ -116,7 +117,45 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     takestep()
   }
 
+  wire_poke(c.io.temac_tx.ready, 0)
   assert(response.size > 0, "Didn't get a response")
+
+  until(peek(c.io.temac_rx.ready) == 1, 450) {}
+
+  pktFile = getClass.getResourceAsStream("/arp-broadcast.raw")
+  val pktBytes = new Array[Byte](42)
+  pktFile.read(pktBytes)
+
+  println("Sending ARP packet")
+
+  wire_poke(c.io.temac_rx.valid, 1)
+
+  for (i <- 0 until pktBytes.length) {
+    val w = pktBytes(i).intValue & 0xff
+    isTrace = true
+    wire_poke(c.io.temac_rx.data, w)
+    if (i == pktBytes.length - 1)
+      wire_poke(c.io.temac_rx.last, 1)
+    isTrace = false
+    until(peek(c.io.temac_rx.ready) == 1, 100) {}
+    takestep()
+  }
+
+  wire_poke(c.io.temac_rx.valid, 0)
+  wire_poke(c.io.core_rx.ready, 1)
+
+  println("Receiving ARP packet")
+
+  for (i <- 0 until pktBytes.length) {
+    until(peek(c.io.core_rx.valid) == 1, 100) {}
+    val w = pktBytes(i).intValue & 0xff
+    isTrace = true
+    expect(c.io.core_rx.data, w)
+    isTrace = false
+    takestep()
+  }
+
+  wire_poke(c.io.core_rx.ready, 0)
 }
 
 object PacketTestMain {
