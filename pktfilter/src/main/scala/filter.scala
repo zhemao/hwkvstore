@@ -634,6 +634,12 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   poke(c.io.readready, 0)
   temacSendPacket(mcPacket)
   coreRecvPacket(mcPacket)
+
+  println("Sending memcached request again")
+  poke(c.io.readready, 1)
+  temacSendPacket(mcPacket, mcKey)
+  sendResult(result, 2)
+  temacRecvPacket(mcResponse)
 }
 
 object PacketFilterMain {

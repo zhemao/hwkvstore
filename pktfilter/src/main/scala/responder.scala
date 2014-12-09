@@ -212,6 +212,9 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     is (s_idle) {
       when (io.start) {
         pktLen := UInt(IPHeaderSize)
+        pktLast := Bool(false)
+        ipChecksum := UInt(0)
+        udpChecksum := UInt(0)
         headerIndex := UInt(0)
         ethHeaderIndex := UInt(0)
         state := s_ip_cs_start
