@@ -33,24 +33,20 @@ class PacketFilter extends Module {
   val lenOffset = Reg(UInt(width = 16))
   //val protOffset = Reg(UInt(width = 16))
 
-  val ignore = Reg(init = Bool(false))
-
   val (m_idle :: m_dstmac :: m_srcmac :: m_eth :: m_etl ::
     m_ihl :: m_tlh :: m_tll :: m_prot ::
-    m_start_stream :: m_finish :: m_start_skip ::
     m_srcaddr_start :: m_srcaddr :: m_dstaddr :: m_ip_end ::
     m_srcport_h :: m_srcport_l :: m_dstport_h :: m_dstport_l :: m_udp_end ::
-    rest) = Enum(Bits(), 38)
+    rest) = Enum(Bits(), 33)
   val (m_reqid_h :: m_reqid_l :: m_mc_udp_end ::
     m_magic :: m_opcode :: m_keylen_h :: m_keylen_l ::
-    m_xtralen :: m_key_info :: m_key_start :: m_pkt_defer ::
+    m_xtralen :: m_key_info :: m_key_start ::
     m_keydata_send :: m_keydata_read :: m_keydata_last ::
-    m_finish_defer :: m_ul_read :: m_ul_stream :: Nil) = rest
+    m_read_rest :: m_stream_out :: Nil) = rest
   val m_state = Reg(init = m_idle)
 
   val mainWriter = StreamWriter(UInt(width = 8), 16)
   mainWriter.io.stream <> io.temac_rx
-  mainWriter.io.ignore := ignore
 
   val writeFinished = mainWriter.io.finished
   val pktCount = mainWriter.io.count
@@ -60,21 +56,17 @@ class PacketFilter extends Module {
   val mainBuffer = Module(new PacketBuffer(BufferSize))
   mainBuffer.io.writeData := writeData
   mainBuffer.io.writeEn := writeEn
-  mainBuffer.io.stream.valid := (m_state === m_start_stream ||
-    m_state === m_pkt_defer || m_state === m_ul_stream)
+  mainBuffer.io.stream.valid := (m_state === m_stream_out)
   mainBuffer.io.stream.bits := pktLen
-  mainBuffer.io.skip.valid := (m_state === m_start_skip)
+  mainBuffer.io.skip.valid := Bool(false)
   mainBuffer.io.skip.bits := pktLen
 
-  val rx_ready = (m_state != m_start_stream) && (m_state != m_start_skip) &&
-                 (m_state != m_key_info) && (m_state != m_pkt_defer) &&
+  val rx_ready = (m_state != m_key_info) && (m_state != m_stream_out) &&
                  (m_state != m_keydata_send) && (m_state != m_keydata_last) &&
-                 (m_state != m_finish_defer) && (m_state != m_ul_stream) &&
                  !mainBuffer.io.full
   mainWriter.io.enable := rx_ready
 
   val deferWriter = StreamWriter(UInt(width = 8), 16)
-  deferWriter.io.ignore := Bool(false)
 
   val deferBuffer = Module(new PacketBuffer(BufferSize))
   deferBuffer.io.writeData := deferWriter.io.writeData
@@ -82,11 +74,12 @@ class PacketFilter extends Module {
   deferWriter.io.enable := !deferBuffer.io.full
 
   val sendDefer = Reg(init = Bool(false))
+  val splitSel = Reg(init = Bool(false))
 
   val streamSplit = StreamSplit(UInt(width = 8))
   streamSplit.io.in <> mainBuffer.io.readData
   streamSplit.io.out_b <> deferWriter.io.stream
-  streamSplit.io.sel := sendDefer
+  streamSplit.io.sel := splitSel
 
   io.core_rx <> StreamArbiter(streamSplit.io.out_a, deferBuffer.io.readData)
 
@@ -153,7 +146,7 @@ class PacketFilter extends Module {
         when (isIP) {
           m_state := m_ihl
         } .otherwise {
-          m_state := m_ul_read
+          m_state := m_read_rest
         }
       }
     }
@@ -176,11 +169,8 @@ class PacketFilter extends Module {
           m_state := m_tlh
         } .otherwise {
           // if the version makes no sense
-          // ignore the rest of the packet
-          // and skip the byte we have already read
-          m_state := m_start_skip
-          pktLen := UInt(EthHeaderLen + 2)
-          ignore := Bool(true)
+          // just stream the packet to the core
+          m_state := m_read_rest
         }
       }
     }
@@ -194,7 +184,7 @@ class PacketFilter extends Module {
       when (writeEn) {
         pktLen := Cat(pktLen(15, 8), writeData) + UInt(EthHeaderLen)
         when (ipv6 || !io.readready) {
-          m_state := m_start_stream
+          m_state := m_read_rest
         } .otherwise {
           m_state := m_prot
         }
@@ -205,7 +195,7 @@ class PacketFilter extends Module {
         when (writeData === UInt(UdpProtocol)) {
           m_state := m_srcaddr_start
         } .otherwise {
-          m_state := m_start_stream
+          m_state := m_read_rest
         }
       }
     }
@@ -273,7 +263,7 @@ class PacketFilter extends Module {
     }
     is (m_reqid_h) {
       when (headerLen >= pktLen) {
-        m_state := m_start_stream
+        m_state := m_read_rest
       } .elsewhen (writeEn) {
         reqId := Cat(writeData, UInt(0, 8))
         m_state := m_reqid_l
@@ -293,12 +283,12 @@ class PacketFilter extends Module {
     }
     is (m_magic) {
       when (headerLen >= pktLen) {
-        m_state := m_start_stream
+        m_state := m_read_rest
       } .elsewhen (writeEn) {
         when (writeData === UInt(MCMagic)) {
           m_state := m_opcode
         } .otherwise {
-          m_state := m_start_stream
+          m_state := m_read_rest
         }
       }
     }
@@ -307,7 +297,7 @@ class PacketFilter extends Module {
         when (writeData === UInt(GetOpcode)) {
           m_state := m_keylen_h
         } .otherwise {
-          m_state := m_start_stream
+          m_state := m_read_rest
         }
       }
     }
@@ -332,19 +322,11 @@ class PacketFilter extends Module {
     }
     is (m_key_info) {
       when (io.keyInfo.ready) {
-        getReqLens(curTag) := pktLen
-        curTag := curTag + UInt(1)
         m_state := m_key_start
       }
     }
     is (m_key_start) {
       when (pktCount === headerLen) {
-        sendDefer := Bool(true)
-        m_state := m_pkt_defer
-      }
-    }
-    is (m_pkt_defer) {
-      when (mainBuffer.io.stream.ready) {
         m_state := m_keydata_send
       }
     }
@@ -364,39 +346,23 @@ class PacketFilter extends Module {
     }
     is (m_keydata_last) {
       when (io.keyData.ready) {
-        m_state := m_finish_defer
-      }
-    }
-    is (m_finish_defer) {
-      when (mainBuffer.io.stream.ready) {
-        sendDefer := Bool(false)
-        m_state := m_idle
-      }
-    }
-    is (m_start_stream) {
-      when (mainBuffer.io.stream.ready) {
-        m_state := m_finish
-      }
-    }
-    is (m_start_skip) {
-      when (mainBuffer.io.skip.ready) {
-        m_state := m_finish
-      }
-    }
-    is (m_finish) {
-      when (io.temac_rx.valid && io.temac_rx.last) {
-        ignore := Bool(false)
-        m_state := m_idle
-      }
-    }
-    is (m_ul_read) {
-      when (writeFinished) {
+        sendDefer := Bool(true)
         pktLen := pktCount
-        m_state := m_ul_stream
+        getReqLens(curTag) := pktCount
+        curTag := curTag + UInt(1)
+        m_state := m_stream_out
       }
     }
-    is (m_ul_stream) {
+    is (m_read_rest) {
+      when (writeFinished) {
+        sendDefer := Bool(false)
+        pktLen := pktCount
+        m_state := m_stream_out
+      }
+    }
+    is (m_stream_out) {
       when (mainBuffer.io.stream.ready) {
+        splitSel := sendDefer
         m_state := m_idle
       }
     }
@@ -524,6 +490,7 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   }
 
   def recvPacket(stream: StreamIO[UInt], packet: Array[Byte]) {
+    waitUntil(stream.valid, 1000)
     poke(stream.ready, 1)
     for (i <- 0 until packet.size) {
       waitUntil(stream.valid, 100)
@@ -629,11 +596,11 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
 
   sendResult("", 0)
 
-  println("Receiving UDP packet")
-  coreRecvPacket(udpPacket)
-
   println("Receiving memcached packet")
   coreRecvPacket(mcPacket)
+
+  println("Receiving UDP packet")
+  coreRecvPacket(udpPacket)
 
   println("Sending IPv6 packet")
   temacSendPacket(ipv6Packet)
