@@ -53,18 +53,17 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val findAvailable = Reg(Bool())
   io.findAvailable := findAvailable
 
-  val resetCounts = Reg(init = Bool(false))
-  io.resetCounts := resetCounts
-
   val (s_init :: s_wait :: s_switch ::
     s_send_info :: s_stream_key :: s_gethash ::
     s_reskey_setlen :: s_reskey_start_copy :: s_reskey_end_copy ::
     s_waitaddrlen :: s_getaddrlen ::
-    s_stream_value :: s_stream_value_finish ::
-    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 15)
+    s_stream_value :: s_stream_value_finish :: s_reset_counts ::
+    s_delkey_setlen :: s_finish :: Nil) = Enum(UInt(), 16)
 
   val state = Reg(init = s_init)
   val found_state = Reg(init = s_wait)
+
+  io.resetCounts := (state === s_reset_counts)
 
   val action = Reg(Bits(width = ActionSize))
   val len = Reg(init = UInt(0, coreDataBits))
@@ -133,7 +132,6 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     }
     is (s_wait) {
       setLen := Bits("b000")
-      resetCounts := Bool(false)
       when (io.rocc.cmd.valid) {
         respDest := io.rocc.cmd.bits.inst.rd
 
@@ -179,15 +177,15 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
             state := s_waitaddrlen
             delayCount := UInt(AddrLookupDelay - 1)
           }
+          is (ResetCountInst) {
+            state := s_reset_counts
+          }
         }
       }
     }
     is (s_switch) {
       when (io.halted) {
         writemode := wantmode
-        when (wantmode === Bool(false)) {
-          resetCounts := Bool(true)
-        }
         state := s_wait
       }
     }
@@ -265,6 +263,9 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
       when (memhandler.io.cmd.ready) {
         state := s_wait
       }
+    }
+    is (s_reset_counts) {
+      state := s_wait
     }
   }
 

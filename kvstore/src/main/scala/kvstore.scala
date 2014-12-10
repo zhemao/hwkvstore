@@ -106,6 +106,8 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   val HashBytes = (c.HashSize - 1) / 8 + 1
   val hash = computeHash(pearsonRomValues1, key, HashBytes) % c.NumKeys
 
+  println(s"Hash value is ${hash}")
+
   println("Reserving key")
   val resKey = TestInst(2, 0, 1, 2, true, true, true)
   Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 4, key.length))
@@ -189,6 +191,12 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
   until (Cmd_IHandler.isIdle && !isBusy, 10) {}
   expect(c.io.writeready, 1)
+
+  println("Checking resetCounts")
+  val resetCounts = TestInst(6, 0, 0, 0, false, false, false)
+  Cmd_IHandler.inputs.enqueue(TestCmd(resetCounts))
+  until (Cmd_IHandler.isIdle && !isBusy, 10) {}
+  takesteps(2) {}
 }
 
 object KeyValueStoreMain {

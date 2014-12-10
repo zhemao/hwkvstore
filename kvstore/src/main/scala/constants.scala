@@ -46,6 +46,7 @@ object Constants {
   val AssocAddrInst  = Bits(3)
   val AssocLenInst   = Bits(4)
   val WriteValInst   = Bits(5)
+  val ResetCountInst = Bits(6)
 
   val StreamKeyAction = Bits(0)
   val CopyValueAction = Bits(1)
