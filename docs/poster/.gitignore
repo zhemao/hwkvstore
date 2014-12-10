@@ -4,5 +4,5 @@
 *.nav
 *.toc
 *.snm
-*.pdf
+poster.pdf
 *.tex.project.vim
