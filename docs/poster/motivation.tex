@@ -1,11 +1,16 @@
 \begin{block}{Motivation}
-We want to bypass the CPU entirely and be able to serve hot requests in
-hardware. The software stack of the end host takes about 86-95 percent of the
-total latency, so substantial speed gains can be made here.
+In Memcached in cluster mode, the software stack of the end host takes about
+86-95 percent of the total latency. A large part of that latency comes from the
+fact that we have to interrupt the CPU on every packet that it processes. Our
+insight is that by servicing hot requests on an FPGA instead of in software, we
+can substantially reduce the latency for most requests.
 
 \end{block}
 
 \vspace{1ex}
 
 \begin{block}{Related Work}
+* Talk about other memecached optimizations.
+
+
 \end{block}
