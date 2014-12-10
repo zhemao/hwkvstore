@@ -1,6 +1,12 @@
 \begin{block}{Software}
+* Talk about the programming model here.
 
-We randomly decide when to push keys to accelerator, so hotter keys are more likely to get pushed.
-
+Another part of the software is when to push each key to the accelerator. For
+this, we approximated how memcached is used in cluster mode where every key is
+pushed to the cache. However, interrupting the accelerator to push every key is
+very expensive and most of the keys are part of the long tail of our input
+distribution. Thus, we probabilistically insert keys to the accelerator, so hot
+keys are likely to get in while keys in the tail aren't very likely to get
+pushed.
 
 \end{block}
