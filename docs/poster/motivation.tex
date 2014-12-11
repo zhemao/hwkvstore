@@ -1,7 +1,7 @@
 \begin{block}{Motivation}
     \begin{itemize}
         \item Path through CPU / Kernel accounts for 86\% of total request latency in datacenter applications
-        \item Goal: Serve popular keys from a NIC-attached software-managed cache to eliminate this path in the common case
+        \item Goal: Serve popular keys from a software-managed cache directly attached to the network interface card in order to eliminate this path in the common case
         \item Many workloads have an access pattern suitable for a small cache
             \begin{itemize}
                 \item TODO: workloads from Facebook paper here
