@@ -1,38 +1,41 @@
-\begin{block}{Infrastructure and System Design}
-    \begin{itemize}
-        \item Node(s): Xilinx ZC706 FPGA Evaluation Platform
-            \begin{itemize}
-                \item RISC-V Rocket Core @ 50MHz
-                    \begin{itemize}
-                        \item Single Issue, In-order, 6-stage pipeline
-                        \item ASIC version most nearly comparable with ARM Cortex-A5
-                    \end{itemize}
-                \item 512 MiB DRAM
-                \item Brocade 1GE Copper SFP Transceiver
-                    \begin{itemize}
-                        \item Xilinx Tri-Mode Ethernet MAC
-                        \item Xilinx 1000Base-X PCS/PMA
-                    \end{itemize}
+\begin{block}{Infrastructure}
+\footnotesize
 
-            \end{itemize} 
-        \item Infrastructure Milestones
-            \begin{itemize}
-                \item No pre-existing hardware devices for Rocket Core
-                \item Built first RISC-V hardware device: register-mapped NIC
-                    \begin{itemize}
-                        \item First \texttt{telnet/ssh} into a physical RISC-V machine
-                    \end{itemize}
-                \item Evolved to DMA-based NIC for performance
-            \end{itemize}
-    \end{itemize}
+\begin{minipage}{0.4\linewidth}
+\includegraphics[width=\linewidth]{img/zc706.pdf}
+\end{minipage}
+\hfill
+\begin{minipage}{0.55\linewidth}
+\alert{Xilinx ZC706 Evaluation Platform}
+\begin{itemize}
+\item ZYNQ-7000 SoC
+\item Brocade 1GbE Copper SFP Transceiver
+	\begin{itemize}
+	\footnotesize
+        \item Xilinx Tri-Mode Ethernet MAC
+        \item Xilinx 1000Base-X PCS/PMA
+	\end{itemize}
+\item 64-bit RISC-V Rocket Core (\SI{50}{\mega\hertz})
+	\begin{itemize}
+	\footnotesize
+	\item Single-issue, in-order, 6-stage pipeline
+	\item ASIC version most nearly comparable with ARM Cortex-A5
+	\end{itemize}
+\end{itemize}
+\vspace{\baselineskip}
+\includegraphics[width=\linewidth]{img/rocket-pipeline.pdf}
+\end{minipage}
 
-    %INSERT BOARD PIC HERE
-\begin{multicols}{2}
-    \includegraphics[width=\linewidth]{img/zc706.pdf}
-\columnbreak
-    \includegraphics[width=\linewidth]{img/zc706.pdf}
-\end{multicols}
-
+\hrule
+\vspace{0.5\baselineskip}
+\begin{itemize}
+\item No pre-existing I/O peripherals for the Rocket chip
+\item Built first RISC-V hardware device: register-mapped NIC
+	\begin{itemize}
+	\footnotesize
+	\item First \texttt{telnet/ssh} into a physical RISC-V machine
+	\end{itemize}
+\item Evolved to DMA-based NIC for performance
+\end{itemize}
+ 
 \end{block}
-
-
