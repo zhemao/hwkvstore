@@ -125,8 +125,22 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     response.toArray
   }
 
+  def packetsMatch(packet1: Array[Byte], packet2: Array[Byte]): Boolean = {
+    if (packet1.length != packet2.length)
+      false
+    else {
+      var ind = 0
+      var matching = true
+      while (ind < packet1.length && matching) {
+        matching = (packet1(ind) == packet2(ind))
+        ind += 1
+      }
+      matching
+    }
+  }
+
   setKey("this key", "this is the value")
-  
+
   var pktFile = getClass.getResourceAsStream("/mc-udp-pkt.raw")
   val regularMcPacket = new Array[Byte](82)
   pktFile.read(regularMcPacket)
@@ -147,10 +161,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   println("Send and receive ARP packet")
   sendPacket(arpPacket)
   response = recvPacket(c.io.core_rx)
-  assert(response.size == arpPacket.size, "ARP packet does not match")
-  for (i <- 0 until response.length) {
-    assert(response(i) == arpPacket(i), "ARP packet does not match")
-  }
+  assert(packetsMatch(response, arpPacket), "ARP packet does not match")
 
   setKey("0", "a")
 
@@ -164,6 +175,11 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   response = recvPacket(c.io.temac_tx)
   assert(response.size > 0, "Didn't get a response for second MC packet")
   dumpPacket(response)
+
+  println("Send and receive ARP again")
+  sendPacket(arpPacket)
+  response = recvPacket(c.io.core_rx)
+  assert(packetsMatch(response, arpPacket), "ARP packet does not match")
 }
 
 object PacketTestMain {

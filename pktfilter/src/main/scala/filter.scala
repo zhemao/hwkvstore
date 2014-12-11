@@ -327,7 +327,11 @@ class PacketFilter extends Module {
     }
     is (m_key_start) {
       when (pktCount === headerLen) {
-        m_state := m_keydata_send
+        when (io.temac_rx.last) {
+          m_state := m_keydata_last
+        } .otherwise {
+          m_state := m_keydata_send
+        }
       }
     }
     is (m_keydata_send) {
