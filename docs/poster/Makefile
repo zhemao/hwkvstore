@@ -30,10 +30,6 @@ unlock.pdf: $(addsuffix .tex, $(PARTS))
 
 poster.pdf: poster.tex $(TEXSRC) $(SVGPDF)
 	$(LATEX) $<
-	@egrep -q $(RERUNBIB) $*.log && $(BIBTEX) $* && $(LATEX) $<; true
-	@egrep -q $(RERUN) $*.log && $(LATEX) $<; true
-	@egrep -q $(RERUN) $*.log && $(LATEX) $<; true
-	-@egrep -qi undefined $*.log && printf '\n=== Undefined ====\n\n' && egrep -i undefined $*.log && echo
 
 %.pdf: %.svg
 	$(INKSCAPE) -f $< -D -A $@
