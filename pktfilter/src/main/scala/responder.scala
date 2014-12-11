@@ -306,6 +306,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
         // the total header size is 64, so the address will roll over to 0
         when (headerIndex === UInt(0)) {
           pktData := bodyData
+          pktLast := (io.resLen === UInt(1))
           bodyIndex := bodyIndex + UInt(1)
           state := s_send_body
         } .otherwise {

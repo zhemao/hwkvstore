@@ -35,10 +35,6 @@ class PacketTestSetup extends Module {
 }
 
 class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
-  var pktFile = getClass.getResourceAsStream("/mc-udp-pkt.raw")
-  var byte = pktFile.read()
-
-  val response = new ArrayBuffer[Int]()
 
   private def isBusy = peek(c.io.rocc.cmd.ready) == 0
 
@@ -53,110 +49,121 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
 
   val memory = new RandomMemory(64, 64*64*2, 
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
-  val key = "this key"
-  val value = "this is the value"
-  val keyWords = messToWords(key, 8, 3)
-  val valueWords = messToWords(value, 8, 1)
 
-  memory.store_data(0, keyWords)
-  memory.store_data(256, valueWords)
+  var accelAddr = 0
 
-  println("Reserving key")
-  val resKey = TestInst(2, 0, 1, 2, true, true, true)
-  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 3, key.length))
+  def setKey(key: String, value: String) {
+    val memData = messToWords(key + value, 8)
 
-  until (Cmd_IHandler.isIdle && !isBusy, 450) {
-    memory.process()
+    memory.store_data(0, memData)
+
+    val writeMode = TestInst(0, 0, 1, 0, false, false, false)
+    val resKey = TestInst(2, 0, 1, 2, true, true, true)
+    Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
+    Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
+
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {
+      memory.process()
+    }
+
+    assert(!Resp_OHandler.outputs.isEmpty, "No response found")
+    val resp = Resp_OHandler.outputs.dequeue()
+    val hash = resp.data
+
+    val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
+    val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
+    val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
+    val readMode = TestInst(0, 0, 0, 0, false, false, false)
+
+    Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, accelAddr))
+    Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
+    Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, key.length))
+    Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
+    accelAddr += value.length
+
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {
+      memory.process()
+    }
+    expect(c.io.readready, 1)
   }
 
-  assert(!Resp_OHandler.outputs.isEmpty, "No response found")
-  val resp = Resp_OHandler.outputs.dequeue()
-  val hash = resp.data
+  def sendPacket(packet: Array[Byte]) {
+    wire_poke(c.io.temac_rx.last, 0)
+    wire_poke(c.io.temac_rx.valid, 1)
 
-  val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
-  val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
-  val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
-  val readMode = TestInst(0, 0, 0, 0, false, false, false)
-
-  Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, 0))
-  Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 257))
-  Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
-
-  until (Cmd_IHandler.isIdle && !isBusy, 450) {
-    memory.process()
+    for (i <- 0 until packet.length) {
+      val w = packet(i).intValue & 0xff
+      wire_poke(c.io.temac_rx.data, w)
+      if (i == packet.length - 1)
+        wire_poke(c.io.temac_rx.last, 1)
+      until(peek(c.io.temac_rx.ready) == 1, 200) {}
+      takestep()
+    }
+    wire_poke(c.io.temac_rx.valid, 0)
   }
 
-  expect(c.io.readready, 1)
-  wire_poke(c.io.temac_rx.valid, 1)
+  def recvPacket(stream: StreamIO[UInt]): Array[Byte] = {
+    val response = new ArrayBuffer[Byte]()
+    var finished = false
 
-  while (byte != -1) {
-    val nextbyte = pktFile.read()
-    wire_poke(c.io.temac_rx.data, byte)
-    if (nextbyte == -1)
-      wire_poke(c.io.temac_rx.last, 1)
-    until(peek(c.io.temac_rx.ready) == 1, 100) {}
-    takestep()
-    byte = nextbyte
+    wire_poke(stream.ready, 1)
+
+    while (!finished) {
+      val success = until(peek(stream.valid) == 1, 200) {}
+      if (!success) {
+        finished = true
+      } else {
+        response += peek(stream.data).byteValue
+        if (peek(stream.last) == 1)
+          finished = true
+        takestep()
+      }
+    }
+
+    wire_poke(stream.ready, 0)
+
+    response.toArray
   }
 
-  wire_poke(c.io.temac_rx.last, 0)
-  wire_poke(c.io.temac_rx.valid, 0)
-
+  setKey("this key", "this is the value")
+  
+  var pktFile = getClass.getResourceAsStream("/mc-udp-pkt.raw")
+  val regularMcPacket = new Array[Byte](82)
+  pktFile.read(regularMcPacket)
   pktFile.close()
 
-  var finished = false
+  println("Send and receive regular MC packet")
+  sendPacket(regularMcPacket)
+  var response = recvPacket(c.io.temac_tx)
 
-  wire_poke(c.io.temac_tx.ready, 1)
-
-  while (!finished) {
-    until(peek(c.io.temac_tx.valid) == 1, 450) {}
-    response += peek(c.io.temac_tx.data).intValue
-    if (peek(c.io.temac_tx.last) == 1)
-      finished = true
-    takestep()
-  }
-
-  wire_poke(c.io.temac_tx.ready, 0)
-  assert(response.size > 0, "Didn't get a response")
+  assert(response.size > 0, "Didn't get a response for first MC packet")
   dumpPacket(response.map(w => w.byteValue).toArray)
 
-  until(peek(c.io.temac_rx.ready) == 1, 450) {}
-
   pktFile = getClass.getResourceAsStream("/arp-broadcast.raw")
-  val pktBytes = new Array[Byte](42)
-  pktFile.read(pktBytes)
+  val arpPacket = new Array[Byte](42)
+  pktFile.read(arpPacket)
+  pktFile.close()
 
-  println("Sending ARP packet")
-
-  wire_poke(c.io.temac_rx.valid, 1)
-
-  for (i <- 0 until pktBytes.length) {
-    val w = pktBytes(i).intValue & 0xff
-    isTrace = true
-    wire_poke(c.io.temac_rx.data, w)
-    if (i == pktBytes.length - 1)
-      wire_poke(c.io.temac_rx.last, 1)
-    isTrace = false
-    until(peek(c.io.temac_rx.ready) == 1, 100) {}
-    takestep()
+  println("Send and receive ARP packet")
+  sendPacket(arpPacket)
+  response = recvPacket(c.io.core_rx)
+  assert(response.size == arpPacket.size, "ARP packet does not match")
+  for (i <- 0 until response.length) {
+    assert(response(i) == arpPacket(i), "ARP packet does not match")
   }
 
-  wire_poke(c.io.temac_rx.valid, 0)
-  wire_poke(c.io.core_rx.ready, 1)
+  setKey("0", "a")
 
-  println("Receiving ARP packet")
+  pktFile = getClass.getResourceAsStream("/mc-short-packet.raw")
+  val shortMcPacket = new Array[Byte](75)
+  pktFile.read(shortMcPacket)
+  pktFile.close()
 
-  for (i <- 0 until pktBytes.length) {
-    until(peek(c.io.core_rx.valid) == 1, 100) {}
-    val w = pktBytes(i).intValue & 0xff
-    isTrace = true
-    expect(c.io.core_rx.data, w)
-    isTrace = false
-    takestep()
-  }
-
-  wire_poke(c.io.core_rx.ready, 0)
+  println("Send and receive short MC packet")
+  sendPacket(shortMcPacket)
+  response = recvPacket(c.io.temac_tx)
+  assert(response.size > 0, "Didn't get a response for second MC packet")
+  dumpPacket(response)
 }
 
 object PacketTestMain {
