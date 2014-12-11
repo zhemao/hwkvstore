@@ -2,17 +2,16 @@
     \begin{itemize}
         \item In datacenter applications, path through CPU/Kernel/Application accounts for 86\% of total request latency
         \item Goal: Use hardware accelerator to serve popular requests for a key-value store, eliminate the CPU path in common case
-            \begin{itemize}
-                \item Accelerator is a software-managed cache attached to the network interface card
-                \item Traffic Manager sits between NIC and accelerator, directs key-value store \texttt{GET} requests to accelerator
-                \item Requests sent to CPU only on cache miss
-            \end{itemize}
         \item Many workloads have an access pattern suitable for a small cache
             \begin{itemize}
-                \item TODO: workloads from Facebook paper here
+                \item A study conducted by Facebook on their memcached workload
+                    showed that 10\% of the keys accounted for 90\% of the
+                    requests.
+                \item The study also showed that most values were relatively
+                    small, about 1 kB.
             \end{itemize}
 
-    \end{itemize}    
+    \end{itemize}
 %In Memcached in cluster mode, the software stack of the end host takes about
 %86-95 percent of the total latency. A large part of that latency comes from the
 %fact that we have to interrupt the CPU on every packet that it processes. Our
@@ -24,7 +23,12 @@
 \vspace{1ex}
 
 \begin{block}{Related Work}
-* Talk about other memcached optimizations.
-
+\begin{itemize}
+    \item A 2013 paper by Lim et al. proposed a system dubbed
+        "Thin Servers with Smart Pipes", which served memcached get requests
+        from FPGA hardware.
+    \item However, the FPGA hardware handled get requests by accessing DRAM,
+        not a local SRAM cache.
+\end{itemize}
 
 \end{block}
