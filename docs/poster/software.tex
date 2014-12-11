@@ -1,12 +1,21 @@
 \begin{block}{Software}
-* Talk about the programming model here.
 
-Another part of the software is when to push each key to the accelerator. For
-this, we approximated how memcached is used in cluster mode where every key is
-pushed to the cache. However, interrupting the accelerator to push every key is
-very expensive and most of the keys are part of the long tail of our input
-distribution. Thus, we probabilistically insert keys to the accelerator, so hot
-keys are likely to get in while keys in the tail aren't very likely to get
-pushed.
+\begin{itemize}
+    \item Software is responsible for managing what keys and values are
+        stored on the accelerator.
+    \item The software controls the accelerator through the RoCC co-processor
+        interface, which provides custom instructions for setting keys and
+        values.
+    \item The software must handle cache invalidation and must determine
+        what keys are most popular and therefore candidates for acceleration.
+\end{itemize}
+
+%Another part of the software is when to push each key to the accelerator. For
+%this, we approximated how memcached is used in cluster mode where every key is
+%pushed to the cache. However, interrupting the accelerator to push every key is
+%very expensive and most of the keys are part of the long tail of our input
+%distribution. Thus, we probabilistically insert keys to the accelerator, so hot
+%keys are likely to get in while keys in the tail aren't very likely to get
+%pushed.
 
 \end{block}
