@@ -1,16 +1,25 @@
 \begin{block}{Motivation}
-In Memcached in cluster mode, the software stack of the end host takes about
-86-95 percent of the total latency. A large part of that latency comes from the
-fact that we have to interrupt the CPU on every packet that it processes. Our
-insight is that by servicing hot requests on an FPGA instead of in software, we
-can substantially reduce the latency for most requests.
+    \begin{itemize}
+        \item Path through CPU / Kernel accounts for 86\% of total request latency in datacenter applications
+        \item Goal: Serve popular keys from a NIC-attached software-managed cache to eliminate this path in the common case
+        \item Many workloads have an access pattern suitable for a small cache
+            \begin{itemize}
+                \item TODO: workloads from Facebook paper here
+            \end{itemize}
+
+    \end{itemize}    
+%In Memcached in cluster mode, the software stack of the end host takes about
+%86-95 percent of the total latency. A large part of that latency comes from the
+%fact that we have to interrupt the CPU on every packet that it processes. Our
+%insight is that by servicing hot requests on an FPGA instead of in software, we
+%can substantially reduce the latency for most requests.
 
 \end{block}
 
 \vspace{1ex}
 
 \begin{block}{Related Work}
-* Talk about other memecached optimizations.
+* Talk about other memcached optimizations.
 
 
 \end{block}
