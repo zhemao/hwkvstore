@@ -77,12 +77,14 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   val MemResp_IHandler = new ValidSource(c.io.rocc.mem.resp, 
     (sckt: HellaCacheResp, in: TestMemResp) => in.inject(this, sckt))
 
+
   val memory = new RandomMemory(64, 64*64*2, 
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
   val key = "asdkfjqwekjfasdkfj"
   val value = "qpwoinfasw9qr09q23jasknvasdfjksjqefksajfk"
   val keyWords = messToWords(key, 8, 4)
   val valueWords = messToWords(value, 8, 2)
+  var accelAddr = 0
 
   memory.store_data(0, keyWords)
   memory.store_data(256, valueWords)
@@ -103,39 +105,60 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   assert( resp.data == HashNotFound,
     s"Expected HashNotFound, instead got ${resp.data}" )
 
-  val HashBytes = (c.HashSize - 1) / 8 + 1
-  val hash = computeHash(pearsonRomValues1, key, HashBytes) % c.NumKeys
+  def setKeyValue(key: String, value: String) {
+    val memData = messToWords(key + value, 8)
+    memory.store_data(0, memData)
 
-  println(s"Hash value is ${hash}")
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {
+      memory.process()
+    }
 
-  println("Reserving key")
-  val resKey = TestInst(2, 0, 1, 2, true, true, true)
-  Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 4, key.length))
+    val HashBytes = (c.HashSize - 1) / 8 + 1
+    val hash = computeHash(pearsonRomValues1, key, HashBytes) % c.NumKeys
 
-  until (Cmd_IHandler.isIdle && !isBusy, 450) {
-    memory.process()
+    println("Reserving key")
+    val resKey = TestInst(2, 0, 1, 2, true, true, true)
+    Cmd_IHandler.inputs.enqueue(TestCmd(resKey, 0, key.length))
+
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {
+      memory.process()
+    }
+
+    assert(!Resp_OHandler.outputs.isEmpty, "No response found")
+    resp = Resp_OHandler.outputs.dequeue()
+    assert(resp.data == hash, s"Expected ${hash} instead got ${resp.data}")
+
+    println("Writing value")
+    val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
+    val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
+    val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
+
+    Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, accelAddr))
+    Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
+    Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, key.length))
+
+    accelAddr += value.length
+
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {
+      memory.process()
+    }
   }
 
-  assert(!Resp_OHandler.outputs.isEmpty, "No response found")
-  resp = Resp_OHandler.outputs.dequeue()
-  assert(resp.data == hash, s"Expected ${hash} instead got ${resp.data}")
-
-  println("Writing value")
-  val assocAddr = TestInst(3, 0, 1, 2, false, true, true)
-  val assocLen  = TestInst(4, 0, 1, 2, false, true, true)
-  val writeVal  = TestInst(5, 0, 1, 2, false, true, true)
-  val readMode = TestInst(0, 0, 0, 0, false, false, false)
-
-  Cmd_IHandler.inputs.enqueue(TestCmd(assocAddr, hash, 4))
-  Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, 258))
-  Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
-
-  until (Cmd_IHandler.isIdle && !isBusy, 450) {
-    memory.process()
+  def setReadMode() {
+    val readMode = TestInst(0, 0, 0, 0, false, false, false)
+    Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
+    until (Cmd_IHandler.isIdle && !isBusy, 450) {}
+    expect(c.io.readready, 1)
   }
 
-  expect(c.io.readready, 1)
+  def setWriteMode() {
+    val writeMode = TestInst(0, 0, 1, 0, false, false, false)
+    Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
+    until (Cmd_IHandler.isIdle && !isBusy, 10) {}
+    expect(c.io.writeready, 1)
+  }
+
+  setKeyValue(key, value)
 
   def streamCurKey(key: String, tag: Int) {
     until (peek(c.io.keyInfo.ready) == 1, 450) {}
@@ -180,23 +203,27 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
     wire_poke(c.io.resultData.ready, 0)
   }
 
+  setReadMode()
+
   println("Streaming in key")
   streamCurKey(key, 0)
   println("Reading out value")
   checkResult(value, 0)
 
-
   println("Checking switch to write mode")
-  val writeMode = TestInst(0, 0, 1, 0, false, false, false)
-  Cmd_IHandler.inputs.enqueue(TestCmd(writeMode))
-  until (Cmd_IHandler.isIdle && !isBusy, 10) {}
-  expect(c.io.writeready, 1)
+  setWriteMode()
 
   println("Checking resetCounts")
   val resetCounts = TestInst(6, 0, 0, 0, false, false, false)
   Cmd_IHandler.inputs.enqueue(TestCmd(resetCounts))
   until (Cmd_IHandler.isIdle && !isBusy, 10) {}
   takesteps(2) {}
+
+  println("Checking short key")
+  setKeyValue("k", "value")
+  setReadMode()
+  streamCurKey("k", 1)
+  checkResult("value", 1)
 }
 
 object KeyValueStoreMain {
