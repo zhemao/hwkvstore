@@ -151,7 +151,9 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   var response = recvPacket(c.io.temac_tx)
 
   assert(response.size > 0, "Didn't get a response for first MC packet")
-  dumpPacket(response.map(w => w.byteValue).toArray)
+  var respValue = new String(response.slice(78, response.length))
+  assert(respValue == "this is the value", "response incorrect")
+  dumpPacket(response)
 
   pktFile = getClass.getResourceAsStream("/arp-broadcast.raw")
   val arpPacket = new Array[Byte](42)
@@ -174,12 +176,23 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   sendPacket(shortMcPacket)
   response = recvPacket(c.io.temac_tx)
   assert(response.size > 0, "Didn't get a response for second MC packet")
+  respValue = new String(response.slice(78, response.length))
+  assert(respValue == "a", "response incorrect")
   dumpPacket(response)
 
   println("Send and receive ARP again")
   sendPacket(arpPacket)
   response = recvPacket(c.io.core_rx)
   assert(packetsMatch(response, arpPacket), "ARP packet does not match")
+
+  println("Changed short MC value and resend packet")
+  setKey("0", "bc")
+  sendPacket(shortMcPacket)
+  response = recvPacket(c.io.temac_tx)
+  assert(response.size > 0, "Didn't get a response for second MC packet")
+  respValue = new String(response.slice(78, response.length))
+  assert(respValue == "bc", "response incorrect")
+  dumpPacket(response)
 }
 
 object PacketTestMain {
