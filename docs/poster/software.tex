@@ -1,13 +1,15 @@
 \begin{block}{Software}
-
 \begin{itemize}
-    \item Software is responsible for managing what keys and values are
-        stored on the accelerator.
-    \item The software controls the accelerator through the RoCC co-processor
-        interface, which provides custom instructions for setting keys and
-        values.
-    \item The software must handle cache invalidation and must determine
-        what keys are most popular and therefore candidates for acceleration.
+\footnotesize
+\item Manages what keys and values are stored on the accelerator
+\item Controls the accelerator through the RoCC co-processor interface, which
+	provides custom instructions for setting keys and values
+\item Responsible for implementing cache replacement policies
+	\begin{itemize}
+	\footnotesize
+	\item Identification of the most popular keys as candidates for offloading
+	\item Invalidation of stale entries
+	\end{itemize}
 \end{itemize}
 
 %Another part of the software is when to push each key to the accelerator. For

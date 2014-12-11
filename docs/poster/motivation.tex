@@ -1,14 +1,15 @@
 \begin{block}{Motivation}
+    \footnotesize
     \begin{itemize}
-        \item In datacenter applications, path through CPU/Kernel/Application accounts for 86\% of total request latency
-        \item Goal: Use hardware accelerator to serve popular requests for a key-value store, eliminate the CPU path in common case
-        \item Many workloads have an access pattern suitable for a small cache
+        \item In datacenter applications, path through CPU/kernel/application accounts for 86\% of total request latency
+        \item \alert{Goal}: Serve popular requests without CPU interruption
+        \item \alert{Solution}: Hardware key-value store attached to the network interface controller
+        \item Many workloads have an access pattern suitable for a small
+        dedicated cache
             \begin{itemize}
-                \item A study conducted by Facebook on their memcached workload
-                    showed that 10\% of the keys accounted for 90\% of the
-                    requests.
-                \item The study also showed that most values were relatively
-                    small, about 1 kB.
+                \footnotesize
+                \item Per a Facebook study, 10\% of keys represents 90\% of requests
+                \item Most values are relatively small in size (\SI{1}{\kilo\byte})
             \end{itemize}
 
     \end{itemize}
@@ -23,11 +24,12 @@
 \vspace{1ex}
 
 \begin{block}{Related Work}
+\footnotesize
 \begin{itemize}
     \item A 2013 paper by Lim et al. proposed a system dubbed
-        "Thin Servers with Smart Pipes", which served memcached get requests
+        ``Thin Servers with Smart Pipes'', which served memcached GET requests
         from FPGA hardware.
-    \item However, the FPGA hardware handled get requests by accessing DRAM,
+    \item However, the FPGA hardware handled GET requests by accessing DRAM,
         not a local SRAM cache.
 \end{itemize}
 

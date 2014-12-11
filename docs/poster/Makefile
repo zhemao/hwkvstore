@@ -6,7 +6,8 @@ INKSCAPE := inkscape
 
 TEXSRC := $(wildcard *.tex)
 SVGSRC := img/frontend.svg img/kvstore.svg img/rocket-pipeline.svg \
-	img/system-base.svg img/system-kvstore.svg
+	img/system-base.svg img/system-kvstore.svg \
+	img/dma-rx.svg img/dma-tx.svg
 SVGPDF := $(SVGSRC:.svg=.pdf)
 
 RERUN := "(undefined references|Rerun to get (cross-references|the bars|point totals) right|Table widths have changed. Rerun LaTeX.|Linenumber reference failed)"
