@@ -5,7 +5,7 @@ BIBTEX := bibtex
 INKSCAPE := inkscape
 
 TEXSRC := $(wildcard *.tex)
-SVGSRC := $(wildcard img/*.svg)
+SVGSRC := img/frontend.svg img/kvstore.svg img/rocket-pipeline.svg
 SVGPDF := $(SVGSRC:.svg=.pdf)
 
 RERUN := "(undefined references|Rerun to get (cross-references|the bars|point totals) right|Table widths have changed. Rerun LaTeX.|Linenumber reference failed)"
