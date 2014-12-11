@@ -1,10 +1,27 @@
 \begin{block}{Conclusion}
-* Conclusion goes here
-* Talk about potential speedup here.
+
+\begin{itemize}
+    \item By moving some of the keys to the accelerator and serving directly
+        to the NIC from hardware, we gained an order of magnitude speedup
+        over Memcached software running on the Rocket core.
+    \item However, we still have a long way to go before we can match the
+        speed of an Intel processor.
+\end{itemize}
+
 \end{block}
 
 \vspace{1ex}
 
 \begin{block}{Future Work}
-* Future work goes here.
+
+\begin{itemize}
+    \item Currently, the traffic manager, DMA engine, and accelerator run at the
+        same frequency as the Rocket core. However, we could place these
+        components on faster clock domains and put asynchronous queues in
+        between them.
+    \item There are also functional optimizations that can be made to the
+        packet filter and accelerator, like increasing the width of their
+        input and output interfaces.
+\end{itemize}
+
 \end{block}
