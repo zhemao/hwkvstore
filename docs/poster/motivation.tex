@@ -1,7 +1,12 @@
 \begin{block}{Motivation}
     \begin{itemize}
-        \item Path through CPU / Kernel accounts for 86\% of total request latency in datacenter applications
-        \item Goal: Serve popular keys from a software-managed cache directly attached to the network interface card in order to eliminate this path in the common case
+        \item In datacenter applications, path through CPU/Kernel/Application accounts for 86\% of total request latency
+        \item Goal: Use hardware accelerator to serve popular requests for a key-value store, eliminate the CPU path in common case
+            \begin{itemize}
+                \item Accelerator is a software-managed cache attached to the network interface card
+                \item Traffic Manager sits between NIC and accelerator, directs key-value store \texttt{GET} requests to accelerator
+                \item Requests sent to CPU only on cache miss
+            \end{itemize}
         \item Many workloads have an access pattern suitable for a small cache
             \begin{itemize}
                 \item TODO: workloads from Facebook paper here
