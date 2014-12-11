@@ -6,3 +6,6 @@
 *.snm
 poster.pdf
 *.tex.project.vim
+/img/kvstore.pdf
+/img/frontend.pdf
+/img/rocket-pipeline.pdf
