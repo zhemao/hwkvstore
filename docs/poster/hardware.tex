@@ -38,9 +38,9 @@
         block RAM.
     \item The traffic manager, interposed between the NIC and the DMA
         engine, implements the specialized Memcached logic.
-	For intercepted Memcached GET requests, it queries the
+    \item For intercepted Memcached GET requests, the traffic manager queries the
 	accelerator and constructs the response packet if the key is found.
-	Unhandled frames are forwarded to the DMA engine for processing
+    \item Unhandled frames are forwarded to the DMA engine for processing
 	by the operating system.
 \end{itemize}
 \end{block}
@@ -56,6 +56,7 @@
 	memory latency
 \item Buffer descriptor rings exposed as queues through processor
 	control registers
+\item Provides 250 times the query throughput as compared to programmed I/O
 \end{itemize}
 
 \begin{multicols}{2}
