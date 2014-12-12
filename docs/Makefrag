@@ -2,9 +2,6 @@ LATEX := pdflatex
 BIBTEX := bibtex
 INKSCAPE := inkscape
 
-SVGSRC := frontend.svg kvstore.svg rocket-pipeline.svg \
-	system-base.svg system-kvstore.svg \
-	dma-rx.svg dma-tx.svg
 SVGSRC_FULL := $(addprefix $(ROOT_DIR)/img/,$(SVGSRC))
 SVGPDF := $(SVGSRC_FULL:.svg=.pdf)
 TEXSRC := $(wildcard *.tex)
