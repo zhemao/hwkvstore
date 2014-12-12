@@ -7,6 +7,23 @@ SVGSRC := frontend.svg kvstore.svg rocket-pipeline.svg \
 	dma-rx.svg dma-tx.svg
 SVGSRC_FULL := $(addprefix $(ROOT_DIR)/img/,$(SVGSRC))
 SVGPDF := $(SVGSRC_FULL:.svg=.pdf)
+TEXSRC := $(wildcard *.tex)
+DOCUMENT_PDF := $(DOCUMENT:.tex=.pdf)
+
+$(DOCUMENT_PDF): $(DOCUMENT) $(TEXSRC) $(SVGPDF)
+	$(LATEX) $<
+
+latexmk:
+	@latexmk -pvc -pdf $(DOCUMENT)
+
+purge:
+	-rm -f *.{aux,bbl,blg,dvi,fdb_latexmk,fls,log,out,thm,toc}
+
+clean: purge
+	-rm -f $(DOCUMENT_PDF)
+	-rm -f $(SVGPDF)
 
 %.pdf: %.svg
 	$(INKSCAPE) -f $< -D -A $@
+
+.SUFFIXES: .tex .pdf .aux .dvi .log .bbl .blg .thm .out
