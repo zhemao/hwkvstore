@@ -1,19 +1,13 @@
+ROOT_DIR := ..
+
+include $(ROOT_DIR)/Makefrag
+
 DOCUMENT := poster.tex
-PARTS := example
-LATEX := pdflatex
-BIBTEX := bibtex
-INKSCAPE := inkscape
+DOCUMENT_PDF := $(DOCUMENT:.tex=.pdf)
 
 TEXSRC := $(wildcard *.tex)
-SVGSRC := img/frontend.svg img/kvstore.svg img/rocket-pipeline.svg \
-	img/system-base.svg img/system-kvstore.svg \
-	img/dma-rx.svg img/dma-tx.svg
-SVGPDF := $(SVGSRC:.svg=.pdf)
 
-RERUN := "(undefined references|Rerun to get (cross-references|the bars|point totals) right|Table widths have changed. Rerun LaTeX.|Linenumber reference failed)"
-RERUNBIB := "No file.*\.bbl|Citation.*undefined"
-
-all: $(DOCUMENT:.tex=.pdf)
+all: $(DOCUMENT_PDF)
 
 latexmk:
 	@latexmk -pvc -pdf $(DOCUMENT)
@@ -22,18 +16,15 @@ purge:
 	-rm -f *.{aux,bbl,blg,dvi,fdb_latexmk,fls,log,out,thm,toc}
 
 clean: purge
-	-rm -f $(DOCUMENT:.tex=.pdf)
+	-rm -f $(DOCUMENT_PDF)
 	-rm -f $(SVGPDF)
 
-show: poster.pdf
+show: $(DOCUMENT)
 	open -a Preview poster.pdf
 
 unlock.pdf: $(addsuffix .tex, $(PARTS))
 
-poster.pdf: poster.tex $(TEXSRC) $(SVGPDF)
+$(DOCUMENT_PDF): $(DOCUMENT) $(TEXSRC) $(SVGPDF)
 	$(LATEX) $<
-
-%.pdf: %.svg
-	$(INKSCAPE) -f $< -D -A $@
 
 .SUFFIXES: .tex .pdf .aux .dvi .log .bbl .blg .thm .out
