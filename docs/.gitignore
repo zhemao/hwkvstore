@@ -4,9 +4,9 @@
 *.nav
 *.toc
 *.snm
-/poster/poster.pdf
-/presentation/presentation.pdf
-/cs250-report/report.pdf
+poster.pdf
+presentation.pdf
+report.pdf
 *.tex.project.vim
 /img/kvstore.pdf
 /img/frontend.pdf

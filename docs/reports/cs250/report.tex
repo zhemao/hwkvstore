@@ -1,0 +1,37 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage[margin=1in]{geometry}
+
+\title{Hardware-Accelerated Key Value Store}
+\author{Sagar Karandikar, Howard Mao, Albert Ou, and Soumya Basu}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+\section{Architecture}
+
+\begin{minipage}{0.3\linewidth}
+    \centering
+    \includegraphics[width=\textwidth]{../../img/system-norocket.pdf}
+
+    Top-level system diagram
+\end{minipage}\qquad
+\begin{minipage}{0.6\linewidth}
+    \centering
+    \includegraphics[width=\textwidth]{../../img/kvstore.pdf}
+
+    Accelerator block diagram
+\end{minipage}
+
+\vspace{2ex}
+
+Memcached requests come in to the system through a 1G ethernet NIC.
+Ethernet packets are first send to the traffic manager. If the traffic manager
+detects that the request is a memcached get request, it will send the key to
+the key-value store accelerator.
+
+\input{../common/accelerator.tex}
+
+\end{document}
