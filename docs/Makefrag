@@ -11,22 +11,25 @@ DOCUMENT_PDF := $(DOCUMENT:.tex=.pdf)
 SP :=
 SP +=	# Literal space
 TEXINPUTS := $(subst $(SP),:,$(strip $(TEXDIR))):
-export TEXINPUTS
+BIBINPUTS := $(subst $(SP),:,$(strip $(BIBDIR))):
+export TEXINPUTS BIBINPUTS
 
 $(DOCUMENT_PDF): $(DOCUMENT) $(TEXSRC) $(SVGPDF)
 	$(LATEX) $<
+ifneq ($(BIBDIR),)
+	$(BIBTEX) $(<:.tex=.aux)
+	$(LATEX) $<
+endif
 
 latexmk:
 	@latexmk -pvc -pdf $(DOCUMENT)
 
-purge:
-	-rm -f *.{aux,bbl,blg,dvi,fdb_latexmk,fls,log,out,thm,toc}
-
-clean: purge
-	-rm -f $(DOCUMENT_PDF)
-	-rm -f $(SVGPDF)
+clean:
+	rm -f $(DOCUMENT_PDF) $(SVGPDF) *.aux *.bbl *.blg *.dvi \
+		*.fdb_latexmk *.fls, *.log *.out *.thm *.toc
 
 %.pdf: %.svg
 	$(INKSCAPE) -f $< -D -A $@
 
+.PHONY: clean
 .SUFFIXES: .tex .pdf .aux .dvi .log .bbl .blg .thm .out

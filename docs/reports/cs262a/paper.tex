@@ -1,5 +1,7 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{hyperref}
+\usepackage[backend=bibtex,style=ieee]{biblatex}
+\addbibresource{reference.bib}
 
 \newcommand{\email}[1]{\href{mailto:#1}{#1}}
 
@@ -24,4 +26,6 @@
 \input{abstract.tex}
 \input{accelerator.tex}
 
+\nocite{*}
+\printbibliography
 \end{document}

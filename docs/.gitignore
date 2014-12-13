@@ -4,6 +4,11 @@
 *.nav
 *.toc
 *.snm
+*.bbl
+*.blg
+*-blx.bib
+*.run.xml
+paper.pdf
 poster.pdf
 presentation.pdf
 report.pdf
