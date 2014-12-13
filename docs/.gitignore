@@ -4,12 +4,15 @@
 *.nav
 *.toc
 *.snm
-poster.pdf
+/poster/poster.pdf
+/presentation/presentation.pdf
+/cs250-report/report.pdf
 *.tex.project.vim
 /img/kvstore.pdf
 /img/frontend.pdf
 /img/rocket-pipeline.pdf
 /img/system-base.pdf
 /img/system-kvstore.pdf
+/img/system-norocket.pdf
 /img/dma-rx.pdf
 /img/dma-tx.pdf
