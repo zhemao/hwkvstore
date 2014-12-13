@@ -4,8 +4,14 @@ INKSCAPE := inkscape
 
 SVGSRC_FULL := $(addprefix $(ROOT_DIR)/img/,$(SVGSRC))
 SVGPDF := $(SVGSRC_FULL:.svg=.pdf)
-TEXSRC := $(wildcard *.tex)
+TEXDIR ?= .
+TEXSRC := $(wildcard $(addsuffix /*.tex,$(TEXDIR)))
 DOCUMENT_PDF := $(DOCUMENT:.tex=.pdf)
+
+SP :=
+SP +=	# Literal space
+TEXINPUTS := $(subst $(SP),:,$(strip $(TEXDIR))):
+export TEXINPUTS
 
 $(DOCUMENT_PDF): $(DOCUMENT) $(TEXSRC) $(SVGPDF)
 	$(LATEX) $<
