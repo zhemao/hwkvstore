@@ -26,21 +26,55 @@ hashing algorithm, a non-cryptographic hashing algorithm implemented as follows.
 
 In this algorithm, \(h\) is one byte in the final hash value,
 \(x\) is the message, and \(T\) is a table containing a random permutation of
-all the integers from 0 to 255. We use two different tables in order to
-generate two different hash values, a primary and a secondary hash. When the
-hasher is finished, it passes these two hashes to the key comparison unit.
+all the integers from 0 to 255. The outer loop of the algorithm is
+parallelized by replicating the following hardware \(n\) times.
+
+\includegraphics[width=\linewidth]{../../img/hasher.pdf}
+
+We use two different tables in order to generate two different hash values,
+a primary and a secondary hash. At the same time, we write the key into the
+current key memory. When the hasher is finished, it passes these two hashes
+to the key comparison unit.
 
 The key comparison unit uses the hash value to index into the key memory.
 The key memory reserves 256 bytes for each key, so the starting address of a
 key in the memory can be found simply by taking the hash value and shifting it
 to the right by a certain number of bits (the shift amount depends on the
-word size of the memory, which can be parameterized).
+word size of the memory, which can be parameterized). Assuming a word size
+of eight bits, the algorithm for the key comparison unit would be as follows.
 
-If one of the two possible keys matches, the correct hash value is then passed
-to the value memory unit. The value memory will then look up the value and
-stream it out through the output interface. If neither of the two keys matched,
-the value memory unit will send a zero through the length interface to
-indicate that no value was found.
+\begin{verbatim}
+function keycompare(hash, curKeyLen)
+    cmpKeyLen := lenMem(hash)
+    if cmpKeyLen != curKeyLen then
+        return false
+    for i from 0 to curKeyLen - 1 do
+        allInd = (hash << 8) | i
+        if curKeyMem(i) != allKeyMem(allInd) then
+            return false
+    return true
+\end{verbatim}
+
+Note that there is also a memory to store the lengths of keys.
+The key comparison unit will check the primary hash value and, if that does
+not match, the secondary hash value. If one of the two possible keys matches,
+the correct hash value is then passed to the value memory unit. The value
+memory will then look up the starting address and length of the value from a
+table, and begin streaming out the value through the output interface.
+If neither of the two keys matched, the value memory unit will send
+a zero through the length interface to indicate that no value was found.
+
+The interfaces between subsequent pipeline stages (hashing, key comparison,
+and value streaming) are constructed so that all three stages can operate
+simultaneously. That way, the accelerator can process three in-flight keys
+at a time. Tags are used to allow external hardware to determine which
+response corresponds to which key. The one complication in decoupling the
+pipeline stages is that both the hasher/writer stage and the key comparison
+stage access the current key memory. This problem is solved by doubling the
+key memory. The writer writes to one half of the memory while the key
+comparison unit reads from the other half. When both units finish processing
+a key, they switch halves so that the key comparison unit reads the key which
+was just written and the writer overwrites the key which was just processed.
 
 \subsubsection{Control through RoCC interface}
 
