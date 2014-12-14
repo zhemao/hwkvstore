@@ -29,7 +29,7 @@ In this algorithm, \(h\) is one byte in the final hash value,
 all the integers from 0 to 255. The outer loop of the algorithm is
 parallelized by replicating the following hardware \(n\) times.
 
-\includegraphics[width=\linewidth]{../../img/hasher.pdf}
+\includegraphics[width=0.9\linewidth]{../../img/hasher.pdf}
 
 We use two different tables in order to generate two different hash values,
 a primary and a secondary hash. At the same time, we write the key into the
@@ -46,11 +46,11 @@ of eight bits, the algorithm for the key comparison unit would be as follows.
 \begin{verbatim}
 function keycompare(hash, curKeyLen)
     cmpKeyLen := lenMem(hash)
-    if cmpKeyLen != curKeyLen then
+    if (cmpKeyLen != curKeyLen)
         return false
-    for i from 0 to curKeyLen - 1 do
+    for i from 0 to (curKeyLen - 1)
         allInd = (hash << 8) | i
-        if curKeyMem(i) != allKeyMem(allInd) then
+        if (curKeyMem(i) != allKeyMem(allInd))
             return false
     return true
 \end{verbatim}
