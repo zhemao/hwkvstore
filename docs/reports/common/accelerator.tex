@@ -1,11 +1,20 @@
-\section{Key-Value Store Accelerator}
+\subsection{Key-Value Store Accelerator}
 
-\subsection{Lookup Pipeline}
+\begin{center}
+\includegraphics[width=0.9\linewidth]{../../img/kvstore.pdf}
+\end{center}
 
-When a key comes into the accelerator from the traffic manager, the first thing
-done is to compute a primary and secondary hash value. The hash algorithm used
-is the Pearson hashing algorithm, a non-cryptographic hashing algorithm
-implemented as follows.
+\subsubsection{Lookup Pipeline}
+
+The main part of the accelerator is a lookup pipeline, which takes keys in
+through an input interface and streams out the values through an output
+interface. Each interface consists of two decoupled interfaces with ready-valid
+signals. The first decoupled interface sends the length of the data to come,
+and the second sends the data itself eight bits at a time.
+
+When a key comes into the accelerator, the first thing done is to compute a
+primary and secondary hash value. The hash algorithm used is the Pearson
+hashing algorithm, a non-cryptographic hashing algorithm implemented as follows.
 
 \begin{verbatim}
     h = array of size n
@@ -29,10 +38,11 @@ word size of the memory, which can be parameterized).
 
 If one of the two possible keys matches, the correct hash value is then passed
 to the value memory unit. The value memory will then look up the value and
-stream it out to the traffic manager. If neither of the two keys matched,
-the value memory unit will send a signal to the traffic manager to indicate this.
+stream it out through the output interface. If neither of the two keys matched,
+the value memory unit will send a zero through the length interface to
+indicate that no value was found.
 
-\subsection{Control through RoCC interface}
+\subsubsection{Control through RoCC interface}
 
 The accelerator is configured from software through the RoCC command interface.
 To place a key into the accelerator, the lookup pipeline must first be

@@ -1,4 +1,5 @@
 \documentclass[conference]{IEEEtran}
+\usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage[backend=bibtex,style=ieee]{biblatex}
 \addbibresource{reference.bib}
@@ -24,7 +25,11 @@
 \maketitle
 
 \input{abstract.tex}
+
+\section{Hardware}
+
 \input{accelerator.tex}
+\input{traffic-manager.tex}
 
 \nocite{*}
 \printbibliography

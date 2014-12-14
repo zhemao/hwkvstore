@@ -1,6 +1,6 @@
 ROOT_DIR := ../..
 
-SVGSRC :=
+SVGSRC := kvstore.svg frontend.svg
 TEXDIR := . ../common
 BIBDIR := $(TEXDIR)
 DOCUMENT := paper.tex
