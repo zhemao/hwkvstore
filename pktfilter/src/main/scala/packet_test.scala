@@ -106,6 +106,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     val response = new ArrayBuffer[Byte]()
     var finished = false
 
+    until(peek(stream.valid) == 1, 1000) {}
     wire_poke(stream.ready, 1)
 
     while (!finished) {
@@ -193,6 +194,20 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   respValue = new String(response.slice(78, response.length))
   assert(respValue == "bc", "response incorrect")
   dumpPacket(response)
+
+  val longReplyPacket = new Array[Byte](82)
+  pktFile = getClass.getResourceAsStream("/mc-long-reply.raw")
+  pktFile.read(longReplyPacket)
+  pktFile.close()
+
+  println("Send packet and receive long reply")
+  val longValue = "199.813198495".padTo(199, '0')
+  setKey("8.207044", longValue)
+  sendPacket(longReplyPacket)
+  response = recvPacket(c.io.temac_tx)
+  assert(response.size > 0, "Didn't get a response for long reply MC packet")
+  respValue = new String(response.slice(78, response.length))
+  assert(respValue == longValue, "long response incorrect")
 }
 
 object PacketTestMain {
