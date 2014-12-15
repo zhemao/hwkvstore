@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 		value[n] = '\0';
+		vallen = n;
 		accel_addr = atoi(argv[2]);
 	} else {
 		value = argv[2];
