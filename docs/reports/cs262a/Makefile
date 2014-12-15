@@ -8,3 +8,6 @@ DOCUMENT := paper.tex
 include $(ROOT_DIR)/Makefrag
 
 all: $(DOCUMENT_PDF)
+
+show: paper.pdf
+	open -a Preview paper.pdf
