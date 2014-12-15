@@ -5,22 +5,37 @@
 #include "accel-inst.h"
 #include "accel.h"
 
+#define MAX_VALUE_SIZE 1422
+
 int main(int argc, char *argv[])
 {
 	char *key, *value;
 	unsigned int keylen, vallen;
 	unsigned long accel_addr, hash;
 
-	if (argc < 4) {
-		fprintf(stderr, "Usage: %s key value addr\n", argv[0]);
+	if (argc < 3) {
+		fprintf(stderr, "Usage: %s key [value] addr\n", argv[0]);
 		return -1;
 	}
 
 	key = argv[1];
-	value = argv[2];
 	keylen = strlen(key);
-	vallen = strlen(value);
-	accel_addr = atoi(argv[3]);
+
+	if (argc < 4) {
+		int n;
+		value = alloca(MAX_VALUE_SIZE + 1);
+		n = fread(value, 1, MAX_VALUE_SIZE, stdin);
+		if (n < 0) {
+			perror("fread");
+			return -1;
+		}
+		value[n] = '\0';
+		accel_addr = atoi(argv[2]);
+	} else {
+		value = argv[2];
+		vallen = strlen(value);
+		accel_addr = atoi(argv[3]);
+	}
 
 	write_mode();
 	fence();
