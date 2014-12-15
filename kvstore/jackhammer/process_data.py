@@ -165,7 +165,7 @@ for datafile in fivefiles:
     name = re.search('DSEConfig[0-9]+', result['config']).group(0)
     print(name)
     print(result['config'])
-    outputdatastruct_fast[name] = result
+    outputdatastruct_five[name] = result
 
 
 for datafile in slowfiles:
@@ -180,7 +180,7 @@ for datafile in slowerfiles:
     name = re.search('DSEConfig[0-9]+', result['config']).group(0)
     print(name)
     print(result['config'])
-    outputdatastruct_slow[name] = result
+    outputdatastruct_slower[name] = result
 
 
 out = {"fast": outputdatastruct_fast, "five": outputdatastruct_five, "slow": outputdatastruct_slow, "slower": outputdatastruct_slower}
