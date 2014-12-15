@@ -1,8 +1,8 @@
 \documentclass{beamer}
-  
+    
 \usepackage{graphicx}
 \usepackage[binary-units=true]{siunitx}
-
+ 
 \title{Hardware Acceleration of Key-Value Stores}
 \author{Sagar Karandikar, Howard Mao, Albert Ou, Soumya Basu}
 \institute[UC Berkeley]{\textsc{University of California, Berkeley}}
@@ -47,11 +47,17 @@
 
 \begin{frame}{Overview of DSE Results}
     \begin{itemize}
+        \item All DSE done with accelerator only
         \item Most parameters didn't have a significant effect on power/performance/area
         \item Why?
             \begin{itemize}
                 \item Reasonable Cache Size / Number of Keys difficult to push through VLSI tools
                 \item Future Work: Design Space Exploration with FPGA
+                    \begin{itemize}
+                        \item Allows for faster testing (can run realistic traces)
+                        \item Faster build cycles
+                        \item Larger memory size
+                    \end{itemize}
             \end{itemize}
         \item What worked?
             \begin{itemize}
