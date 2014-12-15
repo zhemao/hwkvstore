@@ -56,6 +56,11 @@ def process_file_r1(filename):
 
     arealabels = ["Combinational area", "Buf/Inv area", "Noncombinational area", "Net Interconnect area", "Total cell area", "Total area"]
 
+
+    slacks = []
+    slackmin_index = None
+
+
     ### loop over the file, handling cases as we go
     for x in range(len(g)):
 
@@ -89,12 +94,32 @@ def process_file_r1(filename):
                 pdat['power'] = processpower(g, x)
 
         # timing
+        # record clock rate + critical path
+        # first pass, just find the critical path
+        if "slack (" in g[x]:
+            slacks.append(g[x].strip().split()[-1])
 
 
 
+    print(slacks)
+    slacks_float = list(map(float, slacks))
+    print(slacks_float)
+    slackmin_index = slacks_float.index(min(slacks_float))
+    print(slacks_float[slackmin_index])
 
 
+    ### second pass to get info about the critical path
+    cpath_start = None
+    cpath_end = None
+    for x in reversed(range(len(g))):
+        if slacks[slackmin_index] in g[x] and "slack (" in g[x]:
+            cpath_end = x
+        if cpath_end is not None and "Point               " in g[x]:
+            cpath_start = x
+            break
 
+    for x in range(cpath_start, cpath_end+1):
+        print(g[x])
 
     return pdat
 
