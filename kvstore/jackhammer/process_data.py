@@ -6,7 +6,7 @@ import re
 import sys
 
 fastdir = "first_run/" # aiming for 10 Gbit
-fivedir = "slow_run/"  # aiming for 5 Gbit
+fivedir = "five_run/"  # aiming for 5 Gbit
 slowdir = "slow_run/"  # aiming for 1 Gbit
 slowerdir = "slower_run/" # aiming for 100 Mbit
 
