@@ -35,6 +35,31 @@
     \input{design-space-expl-params.tex}
 \end{frame}
 
+\begin{frame}{Overview of DSE Results}
+    \begin{itemize}
+        \item Most parameters didn't have a significant effect
+        \item Why?
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Fixed ``Slow'' Clock (125 MHz)}
+    \begin{itemize}
+        \item show the cluster of points
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Fixed ``Fast'' Clock (125 MHz)}
+    \begin{itemize}
+        \item show the cluster of points
+    \end{itemize}
+\end{frame}
+
+
+
+
+
 \begin{frame}
 
     \input{full-system-testing.tex}
@@ -45,6 +70,26 @@
 \begin{frame}
     \input{infrastructure.tex}
 \end{frame}
+
+\begin{frame}{Developing a NIC for RISC-V}
+    \begin{itemize}
+\item Built first RISC-V hardware device: register-mapped NIC
+	\begin{itemize}
+	\footnotesize
+	\item Programmed I/O with custom Linux kernel driver
+	\item First \texttt{telnet/ssh} session into a physical RISC-V machine
+	\end{itemize}
+\item Evolved to DMA-based NIC for performance
+\end{itemize}
+\end{frame}
+
+\begin{frame}{First Telnet Into RISC-V Hardware!}
+\end{frame}
+
+
+
+
+
 
 \begin{frame}{Latency Comparison}
     \includegraphics[width=\linewidth]{../img/graph.png}

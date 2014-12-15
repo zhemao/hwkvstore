@@ -1,9 +1,24 @@
 \frametitle{Design Space Exploration Parameters}
 
 \begin{itemize}
-    \item wordsize - The word size of the key memory. Affects the speed
+    \item \texttt{wordsize} - The word size of the key memory. Affects the speed
         (cycle count) of key comparison.
-    \item banksize - The size of a single memory bank in the value memory.
-    \item maxfanin - The number of bank values decoded in a single cycle in
+        \begin{itemize}
+            \item 8, 16, 32 (in Bytes)
+        \end{itemize}
+    \item \texttt{banksize} - The size of a single memory bank in the value memory.
+        \begin{itemize}
+            \item 128, 256 (in Bytes)
+        \end{itemize}
+    \item \texttt{maxfanin} - The number of bank values decoded in a single cycle in
         the key and value memory. Affects the depth of the memory pipeline.
+        \begin{itemize}
+            \item 8, 16
+        \end{itemize}
+    \item Clock Period:
+        \begin{itemize}
+            \item Minimum Clock Period - 0.75 ns (also roughly 10Gb Ethernet)
+            \item 1Gb NIC Clock Period - 8 ns
+%            \item 100Mb NIC Clock Period - 80 ns
+        \end{itemize}
 \end{itemize}
