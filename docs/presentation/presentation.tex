@@ -1,5 +1,5 @@
 \documentclass{beamer}
-
+ 
 \usepackage{graphicx}
 \usepackage[binary-units=true]{siunitx}
 
@@ -47,8 +47,12 @@
 
 \begin{frame}{Overview of DSE Results}
     \begin{itemize}
-        \item Most parameters didn't have a significant effect
+        \item Most parameters didn't have a significant effect on power/performance/area
         \item Why?
+            \begin{itemize}
+                \item Reasonable Cache Size / Number of Keys difficult to push through VLSI tools
+                \item Future Work: Design Space Exploration with FPGA
+            \end{itemize}
     \end{itemize}
 \end{frame}
 
@@ -124,12 +128,48 @@ Area ($um^2$) & 414003.0 & 155.0 \\
 
 
 
-\begin{frame}{Latency Comparison}
+\begin{frame}{Raw Latency Comparison}
     \includegraphics[width=\linewidth]{../img/graph.png}
 \end{frame}
 
+
+\begin{frame}{Facebook ETC Benchmark}
+    \includegraphics[width=\linewidth]{../img/facebook_etc_for_pres.png}
+\end{frame}
+
+
+
+
+
 \begin{frame}
     Demo
+\end{frame}
+
+
+\begin{frame}{Future Work}
+    \begin{itemize}
+        \item Based on FPGA Utilization, lots of room to expand/explore
+        \item Future integration between Jackhammer, Xilinx Vivado, and Benchmarking Scripts for FPGA DSE
+        \item Investigate replacing fixed-function traffic manager with programmable co-processor 
+    \end{itemize}
+
+
+\begin{center}
+FPGA Utilization
+
+\vspace{3mm}
+\begin{tabular}{ | c | c | c |  } \hline
+    Resource        & w/o A+TM & w/A+TM  \\ \hline
+    Slice LUTs      & 17.09\%   &  21.79\%   \\  \hline
+    Slice Registers & 6.18\%    &  8.01\%    \\  \hline
+    Memory          & 21.65\%   &  63.85\%   \\  \hline
+\end{tabular}
+\end{center}
+\end{frame}
+
+
+
+\begin{frame}{Questions?}
 \end{frame}
 
 \end{document}
