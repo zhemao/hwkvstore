@@ -111,15 +111,21 @@ def process_file_r1(filename):
     ### second pass to get info about the critical path
     cpath_start = None
     cpath_end = None
+    desired_clock = None
     for x in reversed(range(len(g))):
         if slacks[slackmin_index] in g[x] and "slack (" in g[x]:
             cpath_end = x
         if cpath_end is not None and "Point               " in g[x]:
             cpath_start = x
             break
+        if desired_clock is None and "clock clk (rise edge)" in g[x]:
+            desired_clock = g[x].strip().split()[-1]
 
-    for x in range(cpath_start, cpath_end+1):
-        print(g[x])
+
+    print(desired_clock)
+    pdat["CLOCK"] = float(desired_clock) + (-1*slacks_float[slackmin_index])
+    #for x in range(cpath_start, cpath_end+1):
+    #    print(g[x])
 
     return pdat
 
