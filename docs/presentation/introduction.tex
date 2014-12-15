@@ -6,9 +6,9 @@
     \item \textbf{Goal}: Serve popular requests without CPU interruption
     \item \textbf{Solution}: Hardware key-value store attached to the network
         interface controller
-    \item Many workloads have an access pattern suitable for a small, dedicated cache
+    \item Many datacenter workloads have an access pattern suitable for a small, dedicated cache
         \begin{itemize}
-            \item Per a Facebook study, 10\% of keys represent 90\% of requests
+            \item Per a Facebook study, 10\% of keys represent 90\% of requests in some applications
             \item Most values are relatively small in size (\SI{1}{\kilo\byte})
         \end{itemize}
 \end{itemize}

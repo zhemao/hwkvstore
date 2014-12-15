@@ -1,6 +1,8 @@
 \documentclass{beamer}
     
 \usepackage{graphicx}
+\usepackage{multicol}
+
 \usepackage[binary-units=true]{siunitx}
  
 \title{Hardware Acceleration of Key-Value Stores}
@@ -170,21 +172,31 @@ Area ($um^2$) & 414003.0 & 155.0 \\
 
 
 
-\begin{frame}
-    Demo
+\begin{frame}{Demo}
+\begin{multicols}{2}
+\centering
+\alert{Baseline} \\[0.5\baselineskip]
+\includegraphics[scale=0.5]{../img/system-base.pdf}
+
+\columnbreak
+
+\centering
+\alert{Enhanced} \\[0.5\baselineskip]
+\includegraphics[scale=0.5]{../img/system-kvstore.pdf}
+\end{multicols}
 \end{frame}
 
 
 \begin{frame}{Future Work}
     \begin{itemize}
-        \item Based on FPGA Utilization, lots of room to expand/explore
+        \item Based on ZC706 (FPGA) Utilization, lots of room to expand/explore
         \item Future integration between Jackhammer, Xilinx Vivado, and Benchmarking Scripts for FPGA DSE
         \item Investigate replacing fixed-function traffic manager with programmable co-processor 
     \end{itemize}
 
 
 \begin{center}
-FPGA Utilization
+ZC706 Utilization
 
 \vspace{3mm}
 \begin{tabular}{ | c | c | c |  } \hline
