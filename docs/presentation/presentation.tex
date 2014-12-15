@@ -54,13 +54,27 @@
 
 
 \begin{frame}{Fixed ``Slow'' Clock (125 MHz)}
-    \begin{itemize}
-        \item show the cluster of points
-    \end{itemize}
+
+\noindent
+\includegraphics[width=0.4\textwidth]{../img/dse_slow/powerVSarea.png}\hspace{0.2\textwidth}%
+\includegraphics[width=0.4\textwidth]{../img/dse_slow/powerVSclock.png}\\[2em]
+\includegraphics[width=0.4\textwidth]{../img/dse_slow/areaVSclock.png}\hspace{0.2\textwidth}%
+%\includegraphics[width=0.4\textwidth]{four}\par 
+    \tiny
+    \begin{tabular}{c | c | c }
+%Property & Mean & Std. Dev. \\ \hline
+%Clock ($ns$) & 4.53843636364 & 0.042381047924  \\
+%Power ($uW$) & 31718.1818182 & 208.100420768 \\
+%Area ($um^{2}$) & 409363.605516 & 168.528457411 \\
+Property & Mean & Std. Dev.  \\ \hline
+Clock ($ns$) & 4.54 & 0.04 \\
+Power ($uW$) & 31718.18 & 208.1 \\
+Area ($um^2$) & 409364.0 & 169.0 \\
+\end{tabular} \par
 \end{frame}
 
 
-\begin{frame}{Fixed ``Fast'' Clock (125 MHz)}
+\begin{frame}{Fixed ``Fast'' Clock (1.333 GHz)}
     \begin{itemize}
         \item show the cluster of points
     \end{itemize}
@@ -89,15 +103,15 @@
 	\item Programmed I/O with custom Linux kernel driver
 	\item First \texttt{telnet/ssh} session into a physical RISC-V machine
 	\end{itemize}
+\end{itemize}
+\begin{center}
+        \includegraphics[scale=0.3]{../img/first_telnet.png}
+    \end{center}
+
+\begin{itemize}
 \item Evolved to DMA-based NIC for performance
 \end{itemize}
 \end{frame}
-
-\begin{frame}{First Telnet Into RISC-V Hardware!}
-\end{frame}
-
-
-
 
 
 
