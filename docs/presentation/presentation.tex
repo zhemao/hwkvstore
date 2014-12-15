@@ -187,16 +187,21 @@ Area ($um^2$) & 414003.0 & 155.0 \\
 \end{frame}
 
 
-\begin{frame}{Future Work}
+\begin{frame}{Conclusion/Future Work}
     \begin{itemize}
-        \item Based on ZC706 (FPGA) Utilization, lots of room to expand/explore
+        \item We added networking support to the Rocket Core and built a key-value store accelerator that reduces get-request latency
+            \begin{itemize}
+                \item Raw performance: achieved 10x reduction in latency
+                \item Able to serve 40\% of keys in a realistic workload at this reduced latency
+            \end{itemize}
+        \item Based on ZC706 Utilization, lots of room to expand/explore
         \item Future integration between Jackhammer, Xilinx Vivado, and Benchmarking Scripts for FPGA DSE
         \item Investigate replacing fixed-function traffic manager with programmable co-processor 
     \end{itemize}
 
 
 \begin{center}
-ZC706 Utilization
+    ZC706 (FPGA) Utilization
 
 \vspace{3mm}
 \begin{tabular}{ | c | c | c |  } \hline
