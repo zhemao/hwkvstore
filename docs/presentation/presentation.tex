@@ -1,5 +1,5 @@
 \documentclass{beamer}
- 
+  
 \usepackage{graphicx}
 \usepackage[binary-units=true]{siunitx}
 
@@ -53,6 +53,10 @@
                 \item Reasonable Cache Size / Number of Keys difficult to push through VLSI tools
                 \item Future Work: Design Space Exploration with FPGA
             \end{itemize}
+        \item What worked?
+            \begin{itemize}
+                \item Clock rates
+            \end{itemize}
     \end{itemize}
 \end{frame}
 
@@ -91,6 +95,25 @@ Clock ($ns$) & 0.8 & 0.02  \\
 Power ($uW$) & 119000.0 & 0.0  \\
 Area ($um^2$) & 414003.0 & 155.0 \\
 \end{tabular} \par
+\end{frame}
+
+
+\begin{frame}{Varying Clocks - Area vs. Clock}
+\noindent
+\includegraphics[width=1.0\textwidth]{../img/dse_all/areaVSclock.png}
+\end{frame}
+
+\begin{frame}{Varying Clocks - Power vs. Clock}
+\noindent
+\includegraphics[width=1.0\textwidth]{../img/dse_all/powerVSclock.png}
+\end{frame}
+
+
+
+
+\begin{frame}{Varying Clocks - Power vs. Area}
+\noindent
+\includegraphics[width=1.0\textwidth]{../img/dse_all/powerVSarea.png}
 \end{frame}
 
 
