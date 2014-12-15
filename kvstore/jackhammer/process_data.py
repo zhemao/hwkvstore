@@ -5,10 +5,17 @@ from os.path import isfile, join
 import re
 import sys
 
-onlyfiles = sorted([ f for f in listdir(".") if isfile(join(".", f)) ])
-onlyfiles.remove(sys.argv[0])
+fastdir = "first_run/"
+slowdir = "slow_run/"
 
-outputdatastruct = {}
+fastfiles = sorted([ fastdir+f for f in listdir(fastdir) ])
+slowfiles = sorted([ slowdir+f for f in listdir(slowdir) ])
+
+print(fastfiles)
+print(slowfiles)
+
+outputdatastruct_fast = {}
+outputdatastruct_slow = {}
 
 
 def clean_number(num):
@@ -138,12 +145,19 @@ def process_file_r2(dat):
 
 
 
-for datafile in onlyfiles:
+for datafile in fastfiles:
     result = process_file_r2(process_file_r1(datafile))
     name = re.search('DSEConfig[0-9]+', result['config']).group(0)
     print(name)
     print(result['config'])
-    outputdatastruct[name] = result
+    outputdatastruct_fast[name] = result
 
+for datafile in slowfiles:
+    result = process_file_r2(process_file_r1(datafile))
+    name = re.search('DSEConfig[0-9]+', result['config']).group(0)
+    print(name)
+    print(result['config'])
+    outputdatastruct_slow[name] = result
 
-print("data is loaded into outputdatastruct")
+out = {"fast": outputdatastruct_fast, "slow": outputdatastruct_slow}
+print("data is loaded into 'out'")
