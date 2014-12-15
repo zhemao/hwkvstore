@@ -5,17 +5,25 @@ from os.path import isfile, join
 import re
 import sys
 
-fastdir = "first_run/"
-slowdir = "slow_run/"
+fastdir = "first_run/" # aiming for 10 Gbit
+fivedir = "slow_run/"  # aiming for 5 Gbit
+slowdir = "slow_run/"  # aiming for 1 Gbit
+slowerdir = "slower_run/" # aiming for 100 Mbit
 
-fastfiles = sorted([ fastdir+f for f in listdir(fastdir) ])
-slowfiles = sorted([ slowdir+f for f in listdir(slowdir) ])
+fastfiles = sorted([ fastdir+f for f in listdir(fastdir) if "hammer" in f])
+fivefiles = sorted([ fivedir+f for f in listdir(fivedir) if "hammer" in f])
+slowfiles = sorted([ slowdir+f for f in listdir(slowdir) if "hammer" in f])
+slowerfiles = sorted([ slowerdir+f for f in listdir(slowerdir) if "hammer" in f])
 
 print(fastfiles)
+print(fivefiles)
 print(slowfiles)
+print(slowerfiles)
 
 outputdatastruct_fast = {}
+outputdatastruct_five = {}
 outputdatastruct_slow = {}
+outputdatastruct_slower = {}
 
 
 def clean_number(num):
@@ -152,6 +160,14 @@ for datafile in fastfiles:
     print(result['config'])
     outputdatastruct_fast[name] = result
 
+for datafile in fivefiles:
+    result = process_file_r2(process_file_r1(datafile))
+    name = re.search('DSEConfig[0-9]+', result['config']).group(0)
+    print(name)
+    print(result['config'])
+    outputdatastruct_fast[name] = result
+
+
 for datafile in slowfiles:
     result = process_file_r2(process_file_r1(datafile))
     name = re.search('DSEConfig[0-9]+', result['config']).group(0)
@@ -159,5 +175,13 @@ for datafile in slowfiles:
     print(result['config'])
     outputdatastruct_slow[name] = result
 
-out = {"fast": outputdatastruct_fast, "slow": outputdatastruct_slow}
+for datafile in slowerfiles:
+    result = process_file_r2(process_file_r1(datafile))
+    name = re.search('DSEConfig[0-9]+', result['config']).group(0)
+    print(name)
+    print(result['config'])
+    outputdatastruct_slow[name] = result
+
+
+out = {"fast": outputdatastruct_fast, "five": outputdatastruct_five, "slow": outputdatastruct_slow, "slower": outputdatastruct_slower}
 print("data is loaded into 'out'")
