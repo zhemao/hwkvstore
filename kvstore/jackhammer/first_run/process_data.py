@@ -2,9 +2,11 @@
 
 from os import listdir
 from os.path import isfile, join
+import re
+import sys
 
 onlyfiles = sorted([ f for f in listdir(".") if isfile(join(".", f)) ])
-
+onlyfiles.remove(sys.argv[0])
 
 outputdatastruct = {}
 
@@ -68,7 +70,7 @@ def process_file_r1(filename):
         if "redirect -file $REPORTS_DIR/$ICC_CHIP_FINISH_CEL.area.rpt {report_area -nosplit -hierarchy}" in g[x]:
             ready_for_area = True
         if "Hierarchical area distribution" in g[x]:
-            print("triggered")
+            #print("triggered")
             ready_for_area = False
 
         #### be sure to get the ICC power report
@@ -101,11 +103,11 @@ def process_file_r1(filename):
 
 
 
-    print(slacks)
+    #print(slacks)
     slacks_float = list(map(float, slacks))
-    print(slacks_float)
+    #print(slacks_float)
     slackmin_index = slacks_float.index(min(slacks_float))
-    print(slacks_float[slackmin_index])
+    #print(slacks_float[slackmin_index])
 
 
     ### second pass to get info about the critical path
@@ -122,7 +124,7 @@ def process_file_r1(filename):
             desired_clock = g[x].strip().split()[-1]
 
 
-    print(desired_clock)
+    #print(desired_clock)
     pdat["CLOCK"] = float(desired_clock) + (-1*slacks_float[slackmin_index])
     #for x in range(cpath_start, cpath_end+1):
     #    print(g[x])
@@ -136,5 +138,12 @@ def process_file_r2(dat):
 
 
 
-stuff = process_file_r2(process_file_r1(onlyfiles[0]))
-print(stuff)
+for datafile in onlyfiles:
+    result = process_file_r2(process_file_r1(datafile))
+    name = re.search('DSEConfig[0-9]+', result['config']).group(0)
+    print(name)
+    print(result['config'])
+    outputdatastruct[name] = result
+
+
+print("data is loaded into outputdatastruct")
