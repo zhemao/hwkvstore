@@ -35,6 +35,16 @@
     \input{design-space-expl-params.tex}
 \end{frame}
 
+\begin{frame}{Fixed Parameters}
+    \begin{itemize}
+        \item Many of these can be explored on FPGA - want to run with real traces
+        \item \texttt{keysize}: 256B - Maximum allowed by memcached is 255
+        \item \texttt{numkeys}: 64 - Number of lookup-slots for key-value pairs
+        \item \texttt{valcachesize}: 32KiB - Size of space for values
+        \item \texttt{countsize}: 4 - Width of hit-counters
+    \end{itemize}
+\end{frame}
+
 \begin{frame}{Overview of DSE Results}
     \begin{itemize}
         \item Most parameters didn't have a significant effect

@@ -1,7 +1,28 @@
 \frametitle{Full-System Evaluation}
 
 \begin{itemize}
-    \item 
-    \item 
-    \item 
+    \item Want to test with much larger designs - not feasible with VLSI tools:
 \end{itemize}
+
+
+    \begin{center}
+        \begin{tabular}{ c | c | c}
+            Parameter          & Default VlsiConfig & FPGAConfig \\ \hline
+            Word Size          & 32                 & 32 \\
+            Number of Keys     & 64                 & 1024 \\
+            Value Storage Size & 32 KiB             & 512 KiB \\
+            Max Fan-in         & 16                 & 32 \\
+            Bank Mems?         & Yes                & No \\
+            Bank Size          & 256                & 1024 
+        \end{tabular}
+    \end{center}
+
+\begin{itemize}
+    \item Full-scale benchmark:
+        \begin{itemize}
+            \item FPGA Board is a memcached node - full software stack running on Rocket (Linux + memcached)
+            \item External devices interact with node as they would with any other memcached node
+        \end{itemize}
+\end{itemize}
+
+
