@@ -1,5 +1,38 @@
-\subsection{asdf}
+Our system consists of two novel components that enable the acceleration of 
+memcached get requests: a traffic manager and the key-value store accelerator.
+Both are attached to a RISC-V Rocket Core with DMA-based networking support. The 
+traffic manager directs incoming network traffic to the correct component of 
+our system. Incoming UDP packets that match the memcached binary protocol 
+are taken out of the receive stream and handed to the key-value store 
+accelerator for processing. All other packets are handed off to the DMA 
+engine attached to Rocket for standard software handling.
 
-\subsubsection{subasdf}
+\begin{figure}[t]
+\begin{center}
+\label{fig:full-sys}
+\includegraphics[width=\linewidth]{../../img/system-kvstore.pdf}
+\caption{Full System Design}
+\end{center}
+\end{figure}
+
+When a memcached packet is handed to the accelerator, the accelerator checks 
+for the presence of the requested key-value pair in its SRAM. If the pair is
+available from the accelerator, a memcached binary protocol response is 
+constructed and transmitted back to the client machine without involving the 
+application processor. If the pair is not found in the accelerator, the packet 
+is returned to the traffic manager for transmission to software on the Rocket 
+Core. Once a memcached request is handed to Rocket for processing, it is 
+handled as on any other system running memcached.
+
+The cache replacement policy used by our system to determine the set of keys
+placed on the acclerator is implemented entirely in software and thus is 
+highly tunable without making significant modifications to either the traffic
+manager or accelerator. Additionally, the accelerator is sufficiently 
+generalized as to be used with any system that may benefit from handling some
+requests directly at the network interface card. On the other hand, 
+generalizing the traffic manager is left as future work. One avenue is to 
+replace the traffic manager with a fully-programmable I/O coprocessor, allowing
+on-the-fly selection of packet filtering policies.
+
 
 
