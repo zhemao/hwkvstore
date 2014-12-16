@@ -124,6 +124,7 @@ object MemcachedResp {
       ipv6: Boolean = false, ttl: Int = 100,
       dstmac: Array[Byte] = DefaultDstMac,
       srcmac: Array[Byte] = DefaultSrcMac): Array[Byte] = {
+    val bodyLen = value.length + 4
     val header = Array.fill(36) { 0.toByte }
     header(0) = ((reqid >> 8) & 0xff).toByte
     header(1) = (reqid & 0xff).toByte
@@ -133,8 +134,8 @@ object MemcachedResp {
     // extras length
     header(12) = 4
     // body length
-    header(18) = ((value.length >> 8) & 0xff).byteValue
-    header(19) = (value.length & 0xff).byteValue
+    header(18) = ((bodyLen >> 8) & 0xff).byteValue
+    header(19) = (bodyLen & 0xff).byteValue
     // Extras 0xDEADBEEF
     header(32) = 0xde.byteValue
     header(33) = 0xad.byteValue

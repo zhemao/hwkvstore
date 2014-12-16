@@ -27,6 +27,7 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     Cat(UInt(0, 16 - AddrSize), io.resLen)
   else
     io.resLen(15, 0)
+  val bodyLen = resLen + UInt(4)
 
   val ipPktLen = resLen + UInt(HeaderLen)
   val udpPktLen = resLen + UInt(8 + 36)
@@ -120,8 +121,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     // Extra length
     is (UInt(40)) { headerData := UInt(4) }
     // body length
-    is (UInt(46)) { headerData := resLen(15, 8) }
-    is (UInt(47)) { headerData := resLen(7, 0) }
+    is (UInt(46)) { headerData := bodyLen(15, 8) }
+    is (UInt(47)) { headerData := bodyLen(7, 0) }
     // Extras 0xDEADBEEF
     is (UInt(60)) { headerData := UInt(0xde) }
     is (UInt(61)) { headerData := UInt(0xad) }
@@ -171,8 +172,8 @@ class Responder(AddrSize: Int, CacheSize: Int) extends Module {
     // Extra length
     is (UInt(32)) { pseudoHeaderData := UInt(4) }
     // body length
-    is (UInt(38)) { pseudoHeaderData := resLen(15, 8) }
-    is (UInt(39)) { pseudoHeaderData := resLen(7, 0) }
+    is (UInt(38)) { pseudoHeaderData := bodyLen(15, 8) }
+    is (UInt(39)) { pseudoHeaderData := bodyLen(7, 0) }
     // Extras 0xDEADBEEF
     is (UInt(52)) { pseudoHeaderData := UInt(0xde) }
     is (UInt(53)) { pseudoHeaderData := UInt(0xad) }
