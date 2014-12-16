@@ -7,15 +7,14 @@
     to the programmable logic, we take advantage of the ZC706's SFP cage with a 
     Brocade 1Gb Copper SFP Transceiver.
 
-
-    As our application processor, we use the RISC-V Rocket Core, an open-source
-    64-bit, single-issue, in-order CPU running at 50MHz on the FPGA fabric. This 
+    As our application processor, we use the open-source, 64-bit RISC-V Rocket Core. 
+    The Rocket core is a
+    6-stage, single-issue, in-order pipeline running at 50MHz on the FPGA fabric . This 
     core is supported by Rocket-Chip, which contains uncore components such as
-    caches and coherence agents, along with the host-machine interface (HTIF).
-    In our system, the HTIF bus supports block devices, a console, and the ability
-    to interact with the Rocket Core's DRAM.
-
-    On our boards, Rocket has 512MiB of DRAM
+    caches and coherence agents, along with the host-machine interface (HTIF) \cite{rocket}.
+    On our ZC706 board, Rocket has 512MiB of DRAM, a 16KiB instruction cache, and a 
+    32KiB data cache, while the HTIF bus supports block devices, a console, and 
+    the ability to interact with the Rocket Core's DRAM.
 
 Todo: Linux / poky
 
@@ -56,8 +55,6 @@ Todo: Linux / poky
 \end{center}
 \end{figure}
 
-
-
     Our system uses Xilinx IP included in Vivado $2014.2$ in order to construct 
     a 1Gbps Network Interface Card. The first of these components is the LogiCORE
     IP Ethernet 1000Base-X PCS/PMA or SGMII core \cite{pcspma}. The PCS/PMA
@@ -68,7 +65,14 @@ Todo: Linux / poky
     and a GMII interface for data.
 
     The second component of the NIC is the Xilinx LogiCORE IP Tri-Mode Ethernet 
-    MAC \cite{trimac}. 
+    MAC \cite{trimac}. The MAC implements the Ethernet Medium Access Controller
+    protocol as defined in the IEEE 802.3-2008 specification. The MAC handles
+    ethernet framing protocols and error detection. It attaches to the PCS/PMA
+    IP through a GMII interface for data and an MDIO interface for control.
+    On the CPU-side, the core exposes AXI4-Stream interfaces for transmit and 
+    receive and an AXI4-Lite Interface for management \cite{axi}. Both of these
+    interfaces attach to custom hardware interfaces added to the Rocket core.
+
 
 \subsection{Bootstrapping the System}
     \subsubsection{ARM Core}
@@ -95,3 +99,22 @@ Todo: Linux / poky
 \subsection{Future Infrastructure Work}
     Although our system functions correctly, we do not adhere to the RISC-V
     I/O specifications. (TODO: maybe this section is unnecessary)
+
+    The resource utilization of our full system is noted in Figure \ref{fig:utiltab}.
+    
+
+\begin{figure}[t]
+\begin{center}
+\label{fig:utiltab}
+\begin{tabular}{ | c | c | c |  } \hline
+    Resource        & w/o A+TM & w/A+TM  \\ \hline
+    Slice LUTs      & 17.09\%   &  21.79\%   \\  \hline
+    Slice Registers & 6.18\%    &  8.01\%    \\  \hline
+    Memory          & 21.65\%   &  63.85\%   \\  \hline
+\end{tabular}
+\caption{ZC706 System Utilization}
+\end{center}
+\end{figure}
+
+
+
