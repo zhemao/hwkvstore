@@ -1,0 +1,34 @@
+\section{Introduction}
+Key Value stores are used in many important websites. For example, Amazon uses
+Dynamo~\cite{dynamo}, Redis is used at Github, Digg, and Blizzard
+Interactive~\cite{Reddi10}, and Memcached is used at Facebook, LinkedIn and
+Twitter~\cite{memcached, Petrovic08}. These stores store $(key, value)$ pairs and are
+commonly used as a cache for frequently occurring computations. For example,
+one might use a $(key, value)$ pair in order to store the result of a
+frequently occurring complex SQL query. This means that KV stores become an
+important part of a website's performance. Thus, there are many optimizations
+that are made in order to reduce the latency of these data stores.
+
+When looking at these large KV stores, they are essentially distributed hash
+tables. Thus, there are many components that make up the latency of a request.
+One piece of this is the amount of time that is spent on a single node that is
+processing the request. We see that the mean latency for a request for
+Memcached is approximate $88$ microseconds and the $99$th percentile lies
+somewhere between $1356-2656$ microseconds. The bulk of that time is spend on
+the node, from the mean at $76$ microseconds and the $99$th percentile being
+from $1200-2500$ microseconds~\cite{Kapoor2012}. This means that approximately
+$84\%$ to $96\%$ of the processing time for a request is simply spent on a
+single node. Thus, if we can improve the latency of a single node's processing
+time, then we can make substantial improvements to the total latency in a
+Memcached cluster. This is the focus of this paper.
+
+Our approach to improving a single node's performance is to have a dedicated
+cache on each node that simply serves memcached GET requests. This approach is
+promising due to the high skew that is present in the distribution of keys,
+where a small number of keys make up most of the requests seen at a single
+node. In addition, we see that a large part of the latency caused by a node is
+due to the complex networking software stack. GET requests are simple enough so
+that we can bypass most of that. Thus, we can simply implement this in hardware
+with a dedicated memory in order to decrease latency. Our preliminary
+evaluation shows that we improve by a factor of \todo{Insert improvement here}
+when compared with a software implementation on the same board.
