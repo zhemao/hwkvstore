@@ -42,16 +42,33 @@ Todo: Linux / poky
 
     The SFP requires a low-jitter 125MHz clock for operation. This is provided
     by an on-board Si5324 jitter attenuator chip. This chip does not default to 
-    125MHz and instead must be programmed over I2C. Since the I2C bus is exposed
+    125MHz and instead must be programmed over I2C \cite{xapp1082}. Since the I2C bus is exposed
     only to the ARM cores on the Zynq SoC, bringup for this clock is the 
     responsibilty of a Linux driver running on the ARM core.
 
 \subsubsection{Building the Network Interface Card}
 
-    Our system uses Xilinx IP to construct a 1Gbps Network Interface Card
+\begin{figure}[t]
+\begin{center}
+\label{fig:nic}
+\includegraphics[width=\linewidth]{../../img/NIC.pdf}
+\caption{ZC706-Compatible NIC from Xilinx IP}
+\end{center}
+\end{figure}
 
-    \cite{pcspma}
-    \cite{trimac}
+
+
+    Our system uses Xilinx IP included in Vivado $2014.2$ in order to construct 
+    a 1Gbps Network Interface Card. The first of these components is the LogiCORE
+    IP Ethernet 1000Base-X PCS/PMA or SGMII core \cite{pcspma}. The PCS/PMA
+    core implements the 1000Base-X Physical Coding Sublayer and Physical Medium
+    Attachment standards, as described in IEEE 802.3-2008. The core integrates
+    a device specific transceiver that is compatible with our Brocade SFP Module.
+    On the client side, the PCS/PMA core provides an MDIO interface for control
+    and a GMII interface for data.
+
+    The second component of the NIC is the Xilinx LogiCORE IP Tri-Mode Ethernet 
+    MAC \cite{trimac}. 
 
 \subsection{Bootstrapping the System}
     \subsubsection{ARM Core}
@@ -70,8 +87,9 @@ Todo: Linux / poky
 
     From this point forward, the Rocket Core executes independently of the ARM 
     core. The ARM core now handles only non-network I/O for the Rocket core over
-    the HTIF bus. 
-
+    the HTIF bus. Upon boot, the Rocket core uses our custom TEMAC driver to 
+    bring up the NIC, using custom control registers for configuration of the
+    NIC and DMA engine.
 
 
 \subsection{Future Infrastructure Work}
