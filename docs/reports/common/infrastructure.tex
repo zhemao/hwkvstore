@@ -1,5 +1,79 @@
-\subsection{asdf}
+\subsection{Pre-existing Components}
+    Our system is built on a Xilinx ZC706 FPGA Evaluation platform. This board
+    contains a Xilinx Zynq-7000 XC7Z045-2FFG900C AP SoC, with two ARM Cortex-A9
+    MPCore application processors attached to programmable logic. Our full-system
+    design runs on the programmable logic, with the ARM cores used only for 
+    bootstrapping and non-network I/O purposes. In order to create an ethernet interface accessible
+    to the programmable logic, we take advantage of the ZC706's SFP cage with a 
+    Brocade 1Gb Copper SFP Transceiver.
 
-\subsubsection{subasdf}
+
+    As our application processor, we use the RISC-V Rocket Core, an open-source
+    64-bit, single-issue, in-order CPU running at 50MHz on the FPGA fabric. This 
+    core is supported by Rocket-Chip, which contains uncore components such as
+    caches and coherence agents, along with the host-machine interface (HTIF).
+    In our system, the HTIF bus supports block devices, a console, and the ability
+    to interact with the Rocket Core's DRAM.
+
+    On our boards, Rocket has 512MiB of DRAM
+
+Todo: Linux / poky
 
 
+
+\subsection{Custom Components}
+    Our original system built from pre-existing components was the standard
+    distribution of the RISC-V Rocket Core for Xilinx Zynq FPGAs. As of the 
+    start of our project, this distribution contained only a Rocket Core on
+    the FPGA fabric, without I/O peripherals. As a result, we built many 
+    components from scratch that would traditionally be available. We hope that
+    the presence of these components on the open-source RISC-V platform
+    will accelerate future research efforts. The following sections describe our
+    experiences bringing up various hardware and software components that support
+    our accelerator.
+
+\subsubsection {SFP Bringup}
+    In order to give the programmable logic access to a network, we use 
+    the small form-factor pluggable (SFP) cage on the ZC706 board to house a 
+    one gigabit SFP transceiver. Although the ZC706 contains an existing Ethernet
+    PHY, it is tied to the ARM cores on the Zynq-7000 SoC, and attaching it to 
+    the programmable logic is not feasible without introducing significant 
+    latency overheads.
+
+    The SFP requires a low-jitter 125MHz clock for operation. This is provided
+    by an on-board Si5324 jitter attenuator chip. This chip does not default to 
+    125MHz and instead must be programmed over I2C. Since the I2C bus is exposed
+    only to the ARM cores on the Zynq SoC, bringup for this clock is the 
+    responsibilty of a Linux driver running on the ARM core.
+
+\subsubsection{Building the Network Interface Card}
+
+    Our system uses Xilinx IP to construct a 1Gbps Network Interface Card
+
+    \cite{pcspma}
+    \cite{trimac}
+
+\subsection{Bootstrapping the System}
+    \subsubsection{ARM Core}
+
+    When power is first supplied to the board, our full-system design, containing
+    Rocket along with the traffic manager, accelerator, DMA engine, and NIC is 
+    pushed onto the programmable logic in the Zynq SoC. Next, a copy of Linux
+    with support for SFP clock bringup is booted on the ARM cores in the Zynq
+    SoC. The \texttt{fesvr-zynq} application then executes on the ARM core. 
+    This program copies a specified RISC-V binary into the Rocket Core's DRAM 
+    over the HTIF bus and resets the Rocket Core. In our case, we supply a 
+    \texttt{vmlinux} binary containing the RISC-V Linux kernel, along with a 
+    root filesystem.
+
+    \subsubsection{Rocket Core}
+
+    From this point forward, the Rocket Core executes independently of the ARM 
+    core. The ARM core now handles only non-network I/O for the Rocket core over
+    the HTIF bus. 
+
+
+
+\subsection{Future Infrastructure Work}
+    Although our system functions correctly, we do not adhere to the RISC-V
+    I/O specifications. (TODO: maybe this section is unnecessary)
