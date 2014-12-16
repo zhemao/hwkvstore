@@ -7,9 +7,20 @@
     to the programmable logic, we take advantage of the ZC706's SFP cage with a 
     Brocade 1Gb Copper SFP Transceiver.
 
+    
+\begin{figure}[t]
+\begin{center}
+\label{fig:rocketpipe}
+\includegraphics[width=\linewidth]{../../img/rocket-pipeline.pdf}
+\caption{RISC-V Rocket Core Pipeline Diagram}
+\end{center}
+\end{figure}
+
+
     As our application processor, we use the open-source, 64-bit RISC-V Rocket Core. 
     The Rocket core is a
-    6-stage, single-issue, in-order pipeline running at 50MHz on the FPGA fabric . This 
+    6-stage, single-issue, in-order pipeline running at 50MHz on the FPGA fabric. The
+    Rocket pipeline is elaborated in Figure \ref{fig:rocketpipe}. This 
     core is supported by Rocket-Chip, which contains uncore components such as
     caches and coherence agents, along with the host-machine interface (HTIF) \cite{rocket}.
     On our ZC706 board, Rocket has 512MiB of DRAM, a 16KiB instruction cache, and a 
@@ -21,11 +32,11 @@ Todo: Linux / poky
 
 
 \subsection{Custom Components}
-    Our original system built from pre-existing components was the standard
+    For our base system, we used the standard, publicly-available 
     distribution of the RISC-V Rocket Core for Xilinx Zynq FPGAs. As of the 
     start of our project, this distribution contained only a Rocket Core on
-    the FPGA fabric, without I/O peripherals. As a result, we built many 
-    components from scratch that would traditionally be available. We hope that
+    the FPGA fabric, without I/O peripherals. As a result, during our bringup phase 
+    we built many components from scratch that other projects take for granted. We hope that
     the presence of these components on the open-source RISC-V platform
     will accelerate future research efforts. The following sections describe our
     experiences bringing up various hardware and software components that support
@@ -41,7 +52,7 @@ Todo: Linux / poky
 
     The SFP requires a low-jitter 125MHz clock for operation. This is provided
     by an on-board Si5324 jitter attenuator chip. This chip does not default to 
-    125MHz and instead must be programmed over I2C \cite{xapp1082}. Since the I2C bus is exposed
+    125MHz and instead must be programmed over I\textsuperscript{2}C \cite{xapp1082}. Since the I\textsuperscript{2}C bus is exposed
     only to the ARM cores on the Zynq SoC, bringup for this clock is the 
     responsibilty of a Linux driver running on the ARM core.
 
@@ -97,10 +108,10 @@ Todo: Linux / poky
 
 
 \subsection{Future Infrastructure Work}
-    Although our system functions correctly, we do not adhere to the RISC-V
-    I/O specifications. (TODO: maybe this section is unnecessary)
-
-    The resource utilization of our full system is noted in Figure \ref{fig:utiltab}.
+    Although not relevant to system correctness, we do not adhere to the RISC-V
+    vision for I/O as defined in the upcoming privileged 
+    specification. For reference, the resource utilization of our full system 
+    is noted in Figure \ref{fig:utiltab}.
     
 
 \begin{figure}[t]
