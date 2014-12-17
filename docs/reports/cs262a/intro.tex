@@ -13,10 +13,11 @@ When looking at these large KV stores, they are essentially distributed hash
 tables. Thus, there are many components that make up the latency of a request.
 One piece of this is the amount of time that is spent on a single node that is
 processing the request. We see that the mean latency for a request for
-Memcached is approximate $88$ microseconds and the $99$th percentile lies
-somewhere between $1356-2656$ microseconds. The bulk of that time is spend on
-the node, from the mean at $76$ microseconds and the $99$th percentile being
-from $1200-2500$ microseconds~\cite{Kapoor2012}. This means that approximately
+Memcached is approximately \SI{88}{\micro\s} and the $99$th percentile lies
+somewhere between \SI{1356}{\micro\s} and \SI{2656}{\micro\s}.  The bulk
+of that time is spent at the node, with a mean of \SI{76}{\micro\s} and
+the $99$th percentile ranging from \SI{1200}{\micro\s} and
+\SI{2500}{\micro\s}~\cite{Kapoor2012}.  This means that approximately
 $84\%$ to $96\%$ of the processing time for a request is simply spent on a
 single node. Thus, if we can improve the latency of a single node's processing
 time, then we can make substantial improvements to the total latency in a
