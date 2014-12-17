@@ -1,10 +1,10 @@
-Our preliminary evaluation shows that this approach shows a lot of promise,
-however the software and hardware still need to be tuned in order to better
-decide which keys to accelerate.
+Our preliminary evaluation demonstrates that this approach shows a lot of
+promise, however the software and hardware still need to be tuned in order to
+better decide which keys to accelerate.
 
 \subsection{Methodology}
 
-In our experimental setup, we generated keys, put all of them in Memcached and
+In our experimental setup, we generated keys, put all of them in memcached and
 then did a GET request for all of the keys in turn. We then measured the
 latencies for all of the GET requests of the keys we put in the accelerator.
 There were multiple distributions that we used in order to exercise our system.
@@ -15,7 +15,7 @@ There were multiple distributions that we used in order to exercise our system.
 
 Initially, we looked at how our system does against a software implementation.
 In this experiment, we put a key on the accelerator and a key into the simple
-software implementation of Memcached. Then, we got that key many times and
+software implementation of memcached. Then, we got that key many times and
 looked at the latency of a GET request. Inbetween GET requests, we sometimes
 had a small inter-arrival time, which also varied according to our sample
 distributions.
