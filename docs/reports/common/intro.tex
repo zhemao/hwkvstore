@@ -31,5 +31,6 @@ node. In addition, we see that a large part of the latency caused by a node is
 due to the complex networking software stack. GET requests are simple enough so
 that we can bypass most of that. Thus, we can simply implement this in hardware
 with a dedicated memory in order to decrease latency. Our preliminary
-evaluation shows that we improve by a factor of \todo{Insert improvement here}
-when compared with a software implementation on the same board.
+evaluation shows that we improve latency by a factor of 10x for keys served
+from the accelerator when compared with a software implementation on the same
+board.
