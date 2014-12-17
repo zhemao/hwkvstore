@@ -1,8 +1,9 @@
 \section{Conclusion}
 
-In this paper, we design a hardware accelerator for the Memcached key-value
-store and evaluate it on the ZC706 FPGA development board. By storing keys and
-values in a dedicated SRAM cache and serving responses directly to the NIC 
-without involving the CPU, our accelerator delivers an order of magnitude
-improvement in latency. We furthermore show that our accelerator can store
-enough key-value pairs to serve 40\% of requests in a real-world workload.
+In this paper, we described a hardware accelerator for the Memcached key-value
+store which we developed and evaluated on the ZC706 FPGA development board.
+By storing keys and values in a dedicated SRAM cache and serving responses
+directly to the NIC without involving the CPU, our accelerator delivers an
+order of magnitude improvement in latency. We furthermore showed that our
+accelerator can store a number of key-value pairs sufficient to serve 40\% of
+the requests in a real-world workload.
