@@ -1,0 +1,28 @@
+\subsection{Cache Policy}
+
+In our system, the software makes a decision about which keys to place in the
+accelerator. There are many constraints that this decision has to satisfy.
+First of all, the key itself should be a hot key and not just based on past
+requests- it should be a hot key in the future as well. Another more important
+constaint is that the decision must be made \emph{quickly} otherwise that would
+become the bottleneck. Lastly, the software can only push keys to the
+accelerator every so often since accelerator can't serve requests while being
+written to.
+
+In order to find the hot keys and make quick decisions, we randomly sampled
+each key with probability $\frac{1}{8}$. This allowed us, on average, to get
+keys that appeared frequently while ignoring many of the keys that only get
+called a few times. Since the distribution of requests has a long tail, the
+sampling mitigates any effects that this tail might have.
+
+Since we can only push keys to the accelerator every so often, we batch key
+pushes. This means that only after we accumulate $100$ distinct keys we push it
+off to the accelerator. At this point, the accelerator must make a decision as
+to which keys to accept and which keys to reject.
+
+The accelerator stores keys as a two-way associative cache. Thus, there might
+be a collision with the keys that are attempted to be inserted. We first look
+at the counts of each key from what the accelerator saw and what the software
+saw. Thus, the accelerator makes the decision as to which key should be dropped
+and it silently drops those. After each insertion, all of the counts are reset
+to avoid looking at outdated information.
