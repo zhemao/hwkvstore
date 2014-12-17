@@ -1,6 +1,9 @@
-\documentclass{article}
+\documentclass[conference]{IEEEtran}
 \usepackage{graphicx}
-\usepackage[margin=1in]{geometry}
+\usepackage{multirow}
+\usepackage[backend=bibtex,style=ieee]{biblatex}
+\usepackage[binary-units=true]{siunitx}
+\addbibresource{reference.bib}
 
 \title{Hardware-Accelerated Key Value Store}
 \author{Sagar Karandikar, Howard Mao, Albert Ou, and Soumya Basu}
@@ -8,15 +11,28 @@
 \begin{document}
 \maketitle
 
-\section{Introduction}
+\input{intro.tex}
+
+\section{Related Work}
+
+\input{related_work.tex}
+
+\section{System Overview}
+
+\input{system_overview.tex}
 
 \section{Architecture}
 
-Memcached requests come in to the system through a 1G ethernet NIC.
-Ethernet packets are first send to the traffic manager. If the traffic manager
-detects that the request is a memcached get request, it will send the key to
-the key-value store accelerator.
-
 \input{accelerator.tex}
+\input{traffic-manager.tex}
 
+\section{Infrastructure}
+
+\input{infrastructure.tex}
+
+\section{Future Work}
+\input{future.tex}
+
+\nocite{*}
+\printbibliography
 \end{document}
