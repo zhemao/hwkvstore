@@ -1,24 +1,22 @@
-Our preliminary evaluation shows that this approach shows a lot of promise,
-however the software and hardware still need to be tuned in order to better
-decide which keys to accelerate.
+Our preliminary evaluation demonstrates that this approach shows a lot of
+promise, however the software and hardware still need to be tuned in order to
+better decide which keys to accelerate.
 
 \subsection{Methodology}
 
-In our experimental setup, we generated keys, put all of them in Memcached and
+In our experimental setup, we generated keys, put all of them in memcached and
 then did a GET request for all of the keys in turn. We then measured the
 latencies for all of the GET requests of the keys we put in the accelerator.
 There were multiple distributions that we used in order to exercise our system.
 
-
 \subsection{Results}
 
 Initially, we looked at how our system does against a software implementation.
-In this experiment, we put a key on the accelerator and a key into the simple
-software implementation of Memcached. Then, we got that key many times and
-looked at the latency of a GET request. Inbetween GET requests, we sometimes
-had a small inter-arrival time, which also varied according to our sample
+In this experiment, we put a key on the accelerator and a key in the unmodified
+software implementation of memcached. We then issued many GET requests and
+recorded the latency of all requests. In between GET requests, we sometimes had
+a small inter-arrival time, which also varied according to our sample
 distributions.
-
 
 \begin{figure}[t]
 \begin{center}
@@ -44,23 +42,22 @@ distributions.
 \end{center}
 \end{figure}
 
-As we see from Figure \ref{fig:one-req}, there is approximatley an order of magnitude
-improvement when a key is returned from the accelerator and when a GET request
-bypasses the software stack. This shows that for keys on the accelerator, we
-should see a very large improvement compared to getting the key from software.
+As we see from Figure \ref{fig:one-req}, there is approximately an order of magnitude
+improvement when a key is in the accelerator compared to the key being returned
+from the CPU running memcached.
 
 Furthermore, in order to exercise our accelerator fully, we used a bunch of
 synthetically generated distributions for the keys. In Figure \ref{fig:unif},
 we ran it on a uniform distribution of keys. We see that in this distribution,
 the software driven accelerator does worse than than the pure software
-implementation. The main reason that the average latency is bad is that we are
-only accelerating a small fraction of the keys while incurring the overhead
-from filtering on all of the keys. This means that these distributions do not
-get any of the benefits of our system, such as getting hot keys sped up, while
-the overhead from processing every key is still in effect. This is not unique
-to the uniform distribution, but to many other distributions, such as the
-normal distribution in Figure \ref{fig:norm}, where there are a lot of keys
-that occur a moderate amount of the time and get hit in software.
+implementation. The driving factor behind the poor performance is the overhead
+incurred from the filter when processing each key to check if it is already in
+the accelerator. Thus, these distributions do not leverage the benefits of the
+hardware cache while paying the penalty of the filter. Therefore, the poor
+performance of distributions that are not highly skewed is to be expected from
+our design. In fact, the results shown in Figure \ref{fig:norm} corroborate
+these results since the unmodified software implementation outperforms our
+system.
 
 \begin{figure}[t]
 \begin{center}
