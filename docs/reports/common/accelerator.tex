@@ -11,8 +11,8 @@
 \subsubsection{Lookup Pipeline}
 
 The main part of the accelerator is a lookup pipeline, which takes keys in
-through an input interface and streams out the values through an output
-interface. Each interface consists of two decoupled interfaces with ready-valid
+through an input port, looks up the value, and streams the value out through an
+output port. Each port consists of two decoupled interfaces with ready-valid
 signals. The first decoupled interface sends the length of the data to come,
 and the second sends the data itself eight bits at a time.
 
@@ -44,14 +44,14 @@ parallelized by replicating the following hardware \(n\) times.
 \end{figure}
 We use two different tables in order to generate two different hash values,
 a primary and a secondary hash. At the same time, we write the key into the
-current key memory. When the hasher is finished, it passes these two hashes
+current key memory. When the hasher is finished, it passes the two hashes
 to the key comparison unit.
 
 The key comparison unit uses the hash value to index into the key memory.
 The key memory reserves 256 bytes for each key, so the starting address of a
 key in the memory can be found simply by taking the hash value and shifting it
-to the right by a certain number of bits (the shift amount depends on the
-word size of the memory, which can be parameterized). Assuming a word size
+to the left by a certain number of bits. The shift amount depends on the
+word size of the memory, which can be parameterized. Assuming a word size
 of eight bits, the algorithm for the key comparison unit would be as follows.
 
 {\footnotesize
@@ -74,13 +74,12 @@ not match, the secondary hash value. If one of the two possible keys matches,
 the correct hash value is then passed to the value memory unit. The value
 memory will then look up the starting address and length of the value from a
 table, and begin streaming out the value through the output interface.
-If neither of the two keys matched, the value memory unit will send
+If neither of the two keys match, the value memory unit will send
 a zero through the length interface to indicate that no value was found.
 
-The interfaces between subsequent pipeline stages (hashing, key comparison,
+The interfaces between subsequent stages (hashing, key comparison,
 and value streaming) are constructed so that all three stages can operate
-simultaneously. That way, the accelerator can process three in-flight keys
-at a time. Tags are used to allow external hardware to determine which
+simultaneously. Tags are used to allow external hardware to determine which
 response corresponds to which key. The one complication in decoupling the
 pipeline stages is that both the hasher/writer stage and the key comparison
 stage access the current key memory. This problem is solved by doubling the
@@ -103,7 +102,7 @@ in a hash slot if the slot is empty, the key in the slot is the same as the
 key to be placed, or the key has a lower weight than the key being placed.
 The weight is simply a saturating count of how frequently the key is accessed.
 The count can be reset from software so that keys which were once popular but
-are no longer can be evicted.
+no longer are can be evicted.
 
 Once the lookup pipeline has determined where the new key can be placed, the
 controller will instruct the memory handler to read the value through the

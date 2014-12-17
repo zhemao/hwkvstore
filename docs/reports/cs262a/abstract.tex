@@ -1,17 +1,18 @@
 \begin{abstract}
     In-memory key-value stores are an important part of many datacenter
-    applications. Web applications frequently use such software to cache
-    the results of frequently recurring computations. Reducing the latency of
+    applications. Web applications frequently use such software to cache the
+    results of frequently recurring computations. Reducing the latency of
     key-value lookups will therefore go a long way towards improving total
-    request latency. As a significant portion of the processing time for
-    a request is due to the OS and application overhead, we believe bypassing
-    the software layer and servicing these requests from a hardware accelerator
+    request latency. As a significant portion of the processing time for a
+    request is due to the OS and application overhead, we believe bypassing the
+    software layer and servicing these requests from a hardware accelerator
     will deliver significant benefits. In addition, previous studies have
     determined that the nature of key-value store workloads makes it feasible
     to implement such an accelerator as a small SRAM cache, instead of serving
-    responses from DRAM as previous accelerators have done.
-    In this study, we implement a hardware accelerator for the Memcached
-    key-value store on a Xilinx ZC706 development board and characterize its
-    performance. Our initial evaluation shows a 10x improvement in latency for
-    40\% of requests.
+    responses from DRAM as previous accelerators have done.  In this study, we
+    implement a hardware accelerator for the Memcached key-value store on a
+    Xilinx ZC706 development board and characterize its performance. Our
+    initial evaluation with a realistic workload shows a 10x improvement in
+    latency for 40\% of requests without adding significant overhead to the
+    remaining requests.
 \end{abstract}

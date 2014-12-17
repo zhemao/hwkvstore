@@ -1,14 +1,16 @@
-Others have advocated and explored reducing the latency of datacenter 
-applications, including memcached, by modifying the software stack 
-\cite{rumbleHotos}, \cite{memcachefacebook}. However, 
-our scheme aims to remove the software altogether in the common case. 
+Others have advocated and explored reducing the latency of datacenter
+applications, including memcached, by modifying the software
+stack~\cite{rumbleHotos, memcachefacebook}. However, our scheme aims to remove
+the software altogether in the common case. 
 
-Additionally, prior work has been done on accelerating memcached using
-hardware, however these approaches either limit the functionality of memcached
-by attempting to implement all memcached features in hardware \cite{memcachedappliance} 
-or they require expensive accesses to DRAM for every key that the accelerator 
-serves, increasing latency \cite{memcachedDRAMaccel}. We aim to design a system that minimizes latency for 
-a small number of popular keys, while handling the remaining keys in software.
-In essence, an external observer cannot tell the difference between our 
-accelerated FPGA-based memcached nodes and memcached running on standard 
-server-class hardware, except that some values are returned at extremely low latencies.
+Additionally, previous efforts have accelerated memcached using hardware.
+However, these approaches either limit the functionality of memcached by
+attempting to implement all memcached features in
+hardware~\cite{memcachedappliance} or require expensive accesses to DRAM for
+each key that the accelerator serves, increasing
+latency~\cite{memcachedDRAMaccel}.  We aim to design a system that minimizes
+latency for a small number of popular keys, while handling the remaining keys
+in software. Aside from some values being returned at extremly low latencies,
+an external observer should not be able to distinguish our accelerated
+FPGA-based memcached nodes from memcached running on standard server-class
+hardware.
