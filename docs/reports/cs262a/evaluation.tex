@@ -53,13 +53,15 @@ should see a very large improvement compared to getting the key from software.
 Furthermore, in order to exercise our accelerator fully, we used a bunch of
 synthetically generated distributions for the keys. In Figure \ref{fig:unif},
 we ran it on a uniform distribution of keys. We see that in this distribution,
-the software driven accelerator does only about $40$ to $50$ percent better
-than the pure software implementation. The main reason that the average latency
-isn't as great is that we are only accelerating a small fraction of the keys.
-This necessarily means that a fixed percentage of keys are getting accelerated
-at a time, which means that only a small fraction of keys are getting a
-speedup. We also note that this happens for other symmetric distributions, like
-in Figure \ref{fig:norm} where we used a normal distribution.
+the software driven accelerator does worse than than the pure software
+implementation. The main reason that the average latency is bad is that we are
+only accelerating a small fraction of the keys while incurring the overhead
+from filtering on all of the keys. This means that these distributions do not
+get any of the benefits of our system, such as getting hot keys sped up, while
+the overhead from processing every key is still in effect. This is not unique
+to the uniform distribution, but to many other distributions, such as the
+normal distribution in Figure \ref{fig:norm}, where there are a lot of keys
+that occur a moderate amount of the time and get hit in software.
 
 \begin{figure}[t]
 \begin{center}
