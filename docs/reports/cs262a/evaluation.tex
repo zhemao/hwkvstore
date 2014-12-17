@@ -20,7 +20,14 @@ looked at the latency of a GET request. Inbetween GET requests, we sometimes
 had a small inter-arrival time, which also varied according to our sample
 distributions.
 
-\todo{Insert figure of one request here}
+
+\begin{figure}[t]
+\begin{center}
+\label{fig:one-req}
+\includegraphics[width=\linewidth]{graph.png}
+\caption{Latency of GET requests when only getting 1 key.}
+\end{center}
+\end{figure}
 
 \begin{figure}[t]
 \begin{center}
@@ -53,8 +60,6 @@ This necessarily means that a fixed percentage of keys are getting accelerated
 at a time, which means that only a small fraction of keys are getting a
 speedup. We also note that this happens for other symmetric distributions, like
 in Figure \ref{fig:norm} where we used a normal distribution.
-
-\todo{What was the IA time?}
 
 \begin{figure}[t]
 \begin{center}
