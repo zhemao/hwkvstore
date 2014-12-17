@@ -1,10 +1,10 @@
 \subsection{Key-Value Store Accelerator}
 
-\begin{figure}
-    \label{fig:kvstore}
+\begin{figure}[h]
     \begin{centering}
 \includegraphics[width=0.9\linewidth]{../../img/kvstore.pdf}
 \caption{Key-Value Store Accelerator}
+\label{fig:kvstore}
     \end{centering}
 \end{figure}
 
@@ -20,6 +20,7 @@ When a key comes into the accelerator, the first thing done is to compute a
 primary and secondary hash value. The hash algorithm used is the Pearson
 hashing algorithm, a non-cryptographic hashing algorithm implemented as follows.
 
+{\footnotesize
 \begin{verbatim}
     h = array of size n
     for j from 0 to n-1
@@ -27,17 +28,18 @@ hashing algorithm, a non-cryptographic hashing algorithm implemented as follows.
         for i from 1 to length(x) - 1
             h[j] = T[h[j] ^ x[i]]
 \end{verbatim}
+}
 
 In this algorithm, \(h\) is one byte in the final hash value,
 \(x\) is the message, and \(T\) is a table containing a random permutation of
 all the integers from 0 to 255. The outer loop of the algorithm is
 parallelized by replicating the following hardware \(n\) times.
 
-\begin{figure}
-    \label{fig:hasher}
+\begin{figure}[h]
     \begin{centering}
 \includegraphics[width=0.9\linewidth]{../../img/hasher.pdf}
 \caption{Hasher}
+\label{fig:hasher}
     \end{centering}
 \end{figure}
 We use two different tables in order to generate two different hash values,
@@ -52,6 +54,7 @@ to the right by a certain number of bits (the shift amount depends on the
 word size of the memory, which can be parameterized). Assuming a word size
 of eight bits, the algorithm for the key comparison unit would be as follows.
 
+{\footnotesize
 \begin{verbatim}
 function keycompare(hash, curKeyLen)
     cmpKeyLen := lenMem(hash)
@@ -63,6 +66,7 @@ function keycompare(hash, curKeyLen)
             return false
     return true
 \end{verbatim}
+}
 
 Note that there is also a memory to store the lengths of keys.
 The key comparison unit will check the primary hash value and, if that does
