@@ -1,22 +1,24 @@
 Our preliminary evaluation demonstrates that this approach shows a lot of
-promise, however the software and hardware still need to be tuned in order to
-better decide which keys to accelerate.
+promise. However, investigation into better replacement policies will
+likely yield improvements in system performance.
 
 \subsection{Methodology}
 
-In our experimental setup, we generated keys, put all of them in memcached and
-then did a GET request for all of the keys in turn. We then measured the
-latencies for all of the GET requests of the keys we put in the accelerator.
-There were multiple distributions that we used in order to exercise our system.
+In our experimental setup, we generated key-value pairs, placed them in
+memcached, and performed a GET request for each key. We then measured the
+latencies for a series of GET requests generated from a predetermined
+probability distribution. These distributions include one checking only a
+single key, a uniform distribution, a normal distribution, a Pareto
+distribution, and a distribution based on the ETC workload from the Facebook
+study \cite{AXFJP2012}.
 
 \subsection{Results}
 
-Initially, we looked at how our system does against a software implementation.
-In this experiment, we put a key on the accelerator and a key in the unmodified
-software implementation of memcached. We then issued many GET requests and
-recorded the latency of all requests. In between GET requests, we sometimes had
-a small inter-arrival time, which also varied according to our sample
-distributions.
+In our first benchmark, we compared the latency of our accelerator to the
+latency of software memcached in responding to requests for a single key.
+For this experiment, we set a single key on the accelerator and in the
+unmodified memcached software. We then issued repeated GET requests with
+small random delays in between and recorded the latency of each request.
 
 \begin{figure}[t]
 \begin{center}
@@ -42,22 +44,22 @@ distributions.
 \end{center}
 \end{figure}
 
-As we see from Figure \ref{fig:one-req}, there is approximately an order of magnitude
-improvement when a key is in the accelerator compared to the key being returned
-from the CPU running memcached.
+As we see from Figure \ref{fig:one-req}, there is approximately an order of
+magnitude improvement between a request served by the accelerator and a
+request served by memcached software running on the CPU.
 
-Furthermore, in order to exercise our accelerator fully, we used a bunch of
-synthetically generated distributions for the keys. In Figure \ref{fig:unif},
-we ran it on a uniform distribution of keys. We see that in this distribution,
-the software driven accelerator does worse than than the pure software
+After the single-key benchmark, we tested a series of requests chosen
+according to a uniform distribution of keys.
+
+In Figure \ref{fig:unif}, we see that, for this distribution, the
+hardware-accelerated implementation performs worse than than the pure software
 implementation. The driving factor behind the poor performance is the overhead
-incurred from the filter when processing each key to check if it is already in
-the accelerator. Thus, these distributions do not leverage the benefits of the
-hardware cache while paying the penalty of the filter. Therefore, the poor
-performance of distributions that are not highly skewed is to be expected from
-our design. In fact, the results shown in Figure \ref{fig:norm} corroborate
-these results since the unmodified software implementation outperforms our
-system.
+incurred in the traffic manager checking if each key is in the accelerator.
+Since all requests on the accelerated implementation must pay this penalty,
+we expect the accelerated implementation to perform poorly for key
+distributions that are not heavily skewed. The results for a normal distribution
+(Figure \ref{fig:norm}) show similarly poor performance for the accelerator
+compared to the software implementation.
 
 \begin{figure}[t]
 \begin{center}
@@ -75,22 +77,18 @@ system.
 \end{center}
 \end{figure}
 
-For skewed distributions, we see that the benefits of accelerating a small
-fraction of the keys is quite large. On our synthetically generated pareto
-distribution in Figure \ref{fig:pareto}, we see that the highly skewed keys get the
-benefit of a $10$ times improvement over the software implementation. This is
-due to the fact that once a hot key gets on the accelerator, it is very hard
-for it to get kicked out unless it becomes cold. This is because if it was to
-be kicked out by another key, then that key must have been hotter. However, for
-highly skewed distributions, the probabilty of two hot keys having a cache
-collision is very small. In addition, we see that the software managed
-accelerator actually increases the latency for a bunch of keys as well. This is
-due to the fact that there is a filter as well, so we are incurring a small
-overhead for a large portion of the keys.
+For skewed distributions such as a Pareto distribution (Figure \ref{fig:pareto}),
+we see a drastic improvement in the accelerated implementation over the
+pure-software implementation. In this test, the most popular keys are placed
+on the accelerator and are not easily evicted. For the these keys, the 10x
+latency improvement from serving from the accelerator more than makes up
+for the latency penalty incurred in the traffic manager. However, only about
+$11\%$ of the requests benefit from acceleration. Requests for keys not placed
+on the  accelerator still have higher latency than in the software implementation.
 
-Finally, we used the Facebook ETC distribution~\cite{AXFJP2012} in order to see
-how our system would fare against a real life workload. In Figure
+Finally, we used the Facebook ETC distribution \cite{AXFJP2012} in order to see
+how our system would fare against a real-life workload. In Figure
 \ref{fig:etc}, we see that this is a very promising start. $40$ percent of all
-requests get a $10$ times improvement in latencies. However, our synthetic
-workloads suggest that there are some improvements to be made in our caching
-policy that will probably enhance the performance of our system as well.
+requests get a $10$ times improvement in latencies. However, the poor
+performance in the non-skewed distributions suggests that improvements can be
+made in our caching policy to enhance system performance.
