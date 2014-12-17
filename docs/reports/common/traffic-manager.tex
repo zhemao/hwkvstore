@@ -13,8 +13,10 @@ manager, which routes network packets between the accelerator and the CPU.
 Packets from the network card are first written into the main buffer.
 At the same time, the controller inspects the packet header to determine if
 the packet is an IPv4 UDP packet and that the payload is a Memcached binary
-GET request. A memcached GET request looks like the following.
+GET request. A memcached GET request packet is broken into fields as shown in 
+Figure \ref{fig:getreq}.
 
+\begin{figure}
 \begin{center}
     \begin{tabular}{|c|c|c|c|c|}
         \hline
@@ -40,7 +42,11 @@ GET request. A memcached GET request looks like the following.
         ... & \multicolumn{4}{|c|}{} \\
         \hline
     \end{tabular}
-\end{center}
+        \caption{Memcached Binary Protocol GET Request}
+        \label{fig:getreq}
+    \end{center}
+\end{figure}
+
 
 The first eight octets are a pseudo-TCP header which is used by memcached to
 match requests and responses. We only ever use single-packet messages,
@@ -64,8 +70,9 @@ to come back from the accelerator.
 If a result does come back, the deferred packet is removed from the buffer and
 the responder unit constructs a response by adding the necessary headers and
 computing the IP and UDP checksums. The response is then sent back to the NIC.
-A memcached binary GET response should look like the following
+A memcached binary GET response should be as shown in Figure \ref{fig:getresp}.
 
+\begin{figure}
 \begin{center}
     \begin{tabular}{|c|c|c|c|c|}
         \hline
@@ -93,7 +100,11 @@ A memcached binary GET response should look like the following
         ... & \multicolumn{4}{|c|}{} \\
         \hline
     \end{tabular}
-\end{center}
+        \caption{Memcached Binary Protocol GET Response}
+        \label{fig:getresp}
+    \end{center}
+\end{figure}
+
 
 As before, the first eight bytes are a pseudo-TCP header. The request ID here
 should be the same as the request ID of the corresponding request.

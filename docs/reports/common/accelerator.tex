@@ -1,11 +1,11 @@
 \subsection{Key-Value Store Accelerator}
 
 \begin{figure}[h]
-    \begin{centering}
+    \begin{center}
 \includegraphics[width=0.9\linewidth]{../../img/kvstore.pdf}
 \caption{Key-Value Store Accelerator}
 \label{fig:kvstore}
-    \end{centering}
+    \end{center}
 \end{figure}
 
 \subsubsection{Lookup Pipeline}
@@ -36,11 +36,11 @@ all the integers from 0 to 255. The outer loop of the algorithm is
 parallelized by replicating the following hardware \(n\) times.
 
 \begin{figure}[h]
-    \begin{centering}
+    \begin{center}
 \includegraphics[width=0.9\linewidth]{../../img/hasher.pdf}
 \caption{Hasher}
 \label{fig:hasher}
-    \end{centering}
+    \end{center}
 \end{figure}
 We use two different tables in order to generate two different hash values,
 a primary and a secondary hash. At the same time, we write the key into the

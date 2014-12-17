@@ -3,9 +3,16 @@
 The key-value store accelerator is controlled through the RISC-V RoCC
 co-processor interface. This interface allows the CPU to interact with the
 accelerator by sending it custom instructions. A RoCC instruction is encoded
-as follows.
+as described in Figure \ref{fig:roccencoding}.
 
+\begin{figure}[h]
+    \begin{center}
 \includegraphics[width=0.9\linewidth]{../../img/rocc-encoding.png}
+\caption{RISC-V RoCC Instruction Encoding}
+\label{fig:roccencoding}
+\end{center}
+\end{figure}
+
 
 We use only the \texttt{custom0} instruction, so the opcode is always
 \texttt{0001011}.
@@ -16,6 +23,7 @@ otherwise. The funct7 section of the instruction is essentially a secondary
 opcode. Our accelerator specifies seven instructions, which are distinguished
 by the value of the funct7 field.
 
+\begin{center}
 \begin{tabular}{|c|l|c|}
     \hline
     funct7 & name & xd, xs1, xs2 \\
@@ -29,6 +37,7 @@ by the value of the funct7 field.
     6 & Reset Counts & 000 \\
     \hline
 \end{tabular}
+\end{center}
 
 The ``switch mode'' instruction changes the accelerator to either write mode or
 read mode, depending on the value of the rs1 field. Read mode is rs1=0;
