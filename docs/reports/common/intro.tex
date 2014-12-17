@@ -1,13 +1,13 @@
 \section{Introduction}
-Key Value stores are used in many important websites. For example, Amazon uses
-Dynamo~\cite{dynamo}, Redis is used at Github, Digg, and Blizzard
+Key Value stores are used in many important websites. For example, 
+Dynamo is used at Amazon~\cite{dynamo}, Redis is used at Github, Digg, and Blizzard
 Interactive~\cite{Reddi10}, and Memcached is used at Facebook, LinkedIn and
-Twitter~\cite{memcached, Petrovic08}. These stores store $(key, value)$ pairs and are
-commonly used as a cache for frequently occurring computations. For example,
-one might use a $(key, value)$ pair in order to store the result of a
-frequently occurring complex SQL query. This means that KV stores become an
-important part of a website's performance. Thus, there are many optimizations
-that are made in order to reduce the latency of these data stores.
+Twitter~\cite{memcached, Petrovic08}. These applications store $(key, value)$ 
+pairs and are commonly used as a cache for frequently recurring computations, 
+such as complex SQL queries. Therefore, tuning the performance of these 
+storage systems is essential to building efficient web-scale services.
+Because latency is critical in many of these applications, many optimizations 
+have been explored that aim to reduce the response latency of these systems. 
 
 When looking at these large KV stores, they are essentially distributed hash
 tables. Thus, there are many components that make up the latency of a request.
