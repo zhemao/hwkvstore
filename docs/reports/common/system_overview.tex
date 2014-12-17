@@ -1,6 +1,6 @@
 Our system consists of two novel components that enable the acceleration of 
 memcached get requests: a traffic manager and the key-value store accelerator, 
-both authored in Chisel, a hardware construction language developed at Berkeley.
+both authored in Chisel, a hardware construction language developed at Berkeley \cite{chisel}.
 These components are attached to a RISC-V Rocket Core with DMA-based networking 
 support. The traffic manager directs incoming network traffic to the correct 
 component of our system. Incoming UDP packets that match the memcached binary 

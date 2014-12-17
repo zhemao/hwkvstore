@@ -9,7 +9,7 @@ memcached, and performed a GET request for each key. We then measured the
 latencies for a series of GET requests generated from a predetermined
 probability distribution. These distributions include one checking only a
 single key, a uniform distribution, a normal distribution, a Pareto
-distribution, and a distribution based on the ETC workload from the Facebook
+distribution, and a distribution based on the ETC workload from a Facebook
 study \cite{AXFJP2012}.
 
 \subsection{Results}
@@ -54,7 +54,7 @@ according to a uniform distribution of keys.
 In Figure \ref{fig:unif}, we see that, for this distribution, the
 hardware-accelerated implementation performs worse than than the pure software
 implementation. The driving factor behind the poor performance is the overhead
-incurred in the traffic manager checking if each key is in the accelerator.
+incurred in the traffic manager when checking whether each key is in the accelerator.
 Since all requests on the accelerated implementation must pay this penalty,
 we expect the accelerated implementation to perform poorly for key
 distributions that are not heavily skewed. The results for a normal distribution
@@ -87,8 +87,8 @@ $11\%$ of the requests benefit from acceleration. Requests for keys not placed
 on the  accelerator still have higher latency than in the software implementation.
 
 Finally, we used the Facebook ETC distribution \cite{AXFJP2012} in order to see
-how our system would fare against a real-life workload. In Figure
+how our system would fare against a more realistic workload. In Figure
 \ref{fig:etc}, we see that this is a very promising start. $40$ percent of all
-requests get a $10$ times improvement in latencies. However, the poor
+requests get a factor-of-ten improvement in latency. However, the poor
 performance in the non-skewed distributions suggests that improvements can be
 made in our caching policy to enhance system performance.
