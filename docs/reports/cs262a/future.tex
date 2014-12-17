@@ -1,0 +1,39 @@
+
+Beyond the hardware being functionally complete, the next step will be
+to raise the throughput of the I/O subsystem closer to wire speed.
+The extensive buffering within the traffic manager suggests a natural
+widening of the stream interface servicing the DMA engine and
+accelerator.
+Other RTL optimizations can eliminate dead cycles in the state machines.
+The traffic manager, accelerator, and DMA engine could also be situated
+in a faster clock domain, ideally at \SI{125}{\mega\hertz} alongside the
+MAC, rather than be constrained to the relatively slow core
+frequency of \SI{50}{\mega\hertz}.
+These components are already decoupled from the rest of the design
+through ready/valid handshake schemes, which streamlines the task of
+inserting asynchronous FIFOs and synchronizers at the crossings.
+
+As for software, there is potential to improve the hit rate of the
+accelerator by tuning the cache replacement policy with a more accurate
+heavy hitters algorithm and possibly workload-aware speculation.
+Fragmentation of the value cache could become an issue with a larger
+dataset, which might be mitigated by more sophisticated allocation
+strategies than a simple linear scan.
+
+In the long term, viability as a commodity datacenter appliance rests
+particularly on replacing fixed-function blocks with a programmable
+substrate without compromising latency.
+Much greater efficiency is attainable with a VLSI implementation of the
+accelerator, but an appropriate degree of generalization is necessary to
+justify its expense.
+
+The memcached-specific logic for classifying requests and constructing
+responses is isolated entirely within the traffic manager.
+By exchanging the traffic manager for a programmable I/O co-processor,
+it becomes possible to perform arbitrary packet filtering and to
+support more complicated network processing, such as TCP offload.
+This also permits the accelerator to handle other varieties of key-value
+stores.
+Futhermore, examining a broader set of latency-sensitive applications
+for alternative uses of NIC-attached scratchpad memory might lead to a
+more flexible design for the accelerator.
