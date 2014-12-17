@@ -1,8 +1,12 @@
 \subsection{Key-Value Store Accelerator}
 
-\begin{center}
+\begin{figure}
+    \label{fig:kvstore}
+    \begin{centering}
 \includegraphics[width=0.9\linewidth]{../../img/kvstore.pdf}
-\end{center}
+\caption{Key-Value Store Accelerator}
+    \end{centering}
+\end{figure}
 
 \subsubsection{Lookup Pipeline}
 
@@ -29,8 +33,13 @@ In this algorithm, \(h\) is one byte in the final hash value,
 all the integers from 0 to 255. The outer loop of the algorithm is
 parallelized by replicating the following hardware \(n\) times.
 
+\begin{figure}
+    \label{fig:hasher}
+    \begin{centering}
 \includegraphics[width=0.9\linewidth]{../../img/hasher.pdf}
-
+\caption{Hasher}
+    \end{centering}
+\end{figure}
 We use two different tables in order to generate two different hash values,
 a primary and a secondary hash. At the same time, we write the key into the
 current key memory. When the hasher is finished, it passes these two hashes
