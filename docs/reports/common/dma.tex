@@ -1,4 +1,13 @@
 \subsection{DMA Engine}
+\begin{figure}[t]
+\begin{center}
+\includegraphics[scale=1.4]{../../img/dma-tx.pdf}
+\caption{DMA engine: Transmission channel}
+\label{fig:dma-tx}
+
+\end{center}
+\end{figure}
+
 
 Both the baseline and accelerated systems feature a direct memory access
 (DMA) engine for transferring Ethernet frames to and from main memory.
@@ -53,14 +62,6 @@ The overriding concern, however, is cache pollution by relatively large
 Ethernet frames.
 
 \subsubsection{Transmit}
-
-\begin{figure}[b]
-\begin{center}
-\label{fig:dma-tx}
-\includegraphics[scale=1.4]{../../img/dma-tx.pdf}
-\caption{DMA engine: Transmission channel}
-\end{center}
-\end{figure}
 
 Figure \ref{fig:dma-tx} illustrates the Tx channel architecture.
 The descriptor ring lists pending buffers to transmit.
