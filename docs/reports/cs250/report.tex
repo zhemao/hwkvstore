@@ -5,11 +5,15 @@
 \usepackage[binary-units=true]{siunitx}
 \addbibresource{reference.bib}
 
+\graphicspath{ {../../img/} }
+
 \title{Hardware-Accelerated Key Value Store}
 \author{Sagar Karandikar, Howard Mao, Albert Ou, and Soumya Basu}
 
 \begin{document}
 \maketitle
+
+\input{abstract.tex}
 
 \input{intro.tex}
 
@@ -21,17 +25,25 @@
 
 \input{system_overview.tex}
 
-\section{Architecture}
+\section{Hardware}
 
 \input{accelerator.tex}
 \input{traffic-manager.tex}
+
+\section{Software}
+
+\input{programming-model.tex}
 
 \section{Infrastructure}
 
 \input{infrastructure.tex}
 
+\input{evaluation.tex}
+
 \section{Future Work}
 \input{future.tex}
+
+\input{conclusion.tex}
 
 \nocite{*}
 \printbibliography
