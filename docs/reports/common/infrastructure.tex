@@ -5,7 +5,7 @@
     design runs on the programmable logic, with the ARM cores used only for 
     bootstrapping and non-network I/O purposes. In order to create an ethernet interface accessible
     to the programmable logic, we take advantage of the ZC706's SFP cage with a 
-    Brocade 1Gb Copper SFP Transceiver.
+    Brocade \SI{1}{\giga\bit} Copper SFP Transceiver.
 
     
 \begin{figure}[t]
@@ -17,19 +17,15 @@
 \end{figure}
 
 
-    As our application processor, we use the open-source, 64-bit RISC-V Rocket Core. 
+    As our application processor, we use the open-source 64-bit RISC-V Rocket Core.
     The Rocket core is a
-    6-stage, single-issue, in-order pipeline running at 50MHz on the FPGA fabric. The
+    6-stage, single-issue, in-order pipeline running at \SI{50}{\mega\hertz} on the FPGA fabric. The
     Rocket pipeline is elaborated in Figure \ref{fig:rocketpipe}. This 
     core is supported by Rocket-Chip, which contains uncore components such as
     caches and coherence agents, along with the host-machine interface (HTIF) \cite{rocket}.
-    On our ZC706 board, Rocket has 512MiB of DRAM, a 16KiB instruction cache, and a 
-    32KiB data cache, while the HTIF bus supports block devices, a console, and 
-    the ability to interact with the Rocket Core's DRAM.
-
-Todo: Linux / poky
-
-
+    On our ZC706 board, Rocket has \SI{512}{\mebi\byte} of DRAM, a \SI{16}{\kibi\byte} instruction cache, and a
+    \SI{32}{\kibi\byte} data cache, while the HTIF bus supports block devices, a console, and
+    externally initiated DMA transfers into DRAM.
 
 \subsection{Custom Components}
     For our base system, we used the standard, publicly-available 
@@ -42,7 +38,7 @@ Todo: Linux / poky
     experiences bringing up various hardware and software components that support
     our accelerator.
 
-\subsubsection {SFP Bringup}
+\subsubsection {SFP Bring-up}
     In order to give the programmable logic access to a network, we use 
     the small form-factor pluggable (SFP) cage on the ZC706 board to house a 
     one gigabit SFP transceiver. Although the ZC706 contains an existing Ethernet
@@ -50,9 +46,9 @@ Todo: Linux / poky
     the programmable logic is not feasible without introducing significant 
     latency overheads.
 
-    The SFP requires a low-jitter 125MHz clock for operation. This is provided
+    The SFP requires a low-jitter \SI{125}{\mega\hertz} clock for operation. This is provided
     by an on-board Si5324 jitter attenuator chip. This chip does not default to 
-    125MHz and instead must be programmed over I\textsuperscript{2}C \cite{xapp1082}. Since the I\textsuperscript{2}C bus is exposed
+    \SI{125}{\mega\hertz} and instead must be programmed over I\textsuperscript{2}C \cite{xapp1082}. Since the I\textsuperscript{2}C bus is exposed
     only to the ARM cores on the Zynq SoC, bringup for this clock is the 
     responsibilty of a Linux driver running on the ARM core.
 
