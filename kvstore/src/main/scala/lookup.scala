@@ -5,10 +5,10 @@ import kvstore.TestUtils._
 import kvstore.Constants._
 
 class LookupPipeline(
-    val WordSize: Int, val KeySize: Int, val NumKeys: Int,
+    val KeyWordSize: Int, val KeySize: Int, val NumKeys: Int,
     ValCacheSize: Int, TagSize: Int) extends Module {
-  val WordBytes = WordSize / 8
-  val CurKeyWords = KeySize / WordBytes
+  val KeyWordBytes = KeyWordSize / 8
+  val CurKeyWords = KeySize / KeyWordBytes
   val AllKeyWords = CurKeyWords * NumKeys
   val HashSize = log2Up(NumKeys)
   val KeyLenSize = log2Up(KeySize)
@@ -51,7 +51,7 @@ class LookupPipeline(
   }
 
   val hasherwriter = Module(
-    new HasherWriter(HashSize, WordSize, KeySize, TagSize))
+    new HasherWriter(HashSize, KeyWordSize, KeySize, TagSize))
   hasherwriter.io.lock    <> io.lock
   hasherwriter.io.keyData.bits := Mux(io.writemode,
     io.writeKeyData.bits, io.readKeyData.bits)
@@ -68,19 +68,19 @@ class LookupPipeline(
   io.writeKeyData.ready := hasherwriter.io.keyData.ready && io.writemode
 
   val keycompare = Module(
-    new KeyCompare(HashSize, WordSize, KeySize, TagSize))
+    new KeyCompare(HashSize, KeyWordSize, KeySize, TagSize))
   keycompare.io.hashIn <> hasherwriter.io.hashOut
   keycompare.io.findAvailable := io.findAvailable
   keycompare.io.resetCounts := io.resetCounts
 
-  val keycopy = Module(new KeyCopier(HashSize, WordSize, KeySize))
+  val keycopy = Module(new KeyCopier(HashSize, KeyWordSize, KeySize))
   keycopy.io.copyReq <> io.copyReq
 
-  val curKeyMem = Module(new UnbankedMem(WordSize, CurKeyWords * 2))
+  val curKeyMem = Module(new UnbankedMem(KeyWordSize, CurKeyWords * 2))
   val allKeyMem = if (BankMems) {
-    Module(new BankedMem(WordSize, CurKeyWords, NumKeys))
+    Module(new BankedMem(KeyWordSize, CurKeyWords, NumKeys))
   } else {
-    Module(new UnbankedMem(WordSize, CurKeyWords * NumKeys))
+    Module(new UnbankedMem(KeyWordSize, CurKeyWords * NumKeys))
   }
   val lenMem = Mem(UInt(width = KeyLenSize), NumKeys, true)
 
@@ -141,7 +141,6 @@ class LookupPipeline(
 }
 
 class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
-  val WordBytes = c.WordSize / 8
   val HashBytes = (c.HashSize - 1) / 8 + 1
 
   def writeValue(hash: BigInt, start: Int, value: String) {

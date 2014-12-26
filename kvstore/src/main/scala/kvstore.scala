@@ -6,14 +6,14 @@ import kvstore.TestUtils._
 import kvstore.Constants._
 
 class KeyValueStore extends Module {
-  val WordSize = params[Int]("wordsize")
+  val KeyWordSize = params[Int]("keywordsize")
   val KeySize = params[Int]("keysize")
   val NumKeys = params[Int]("numkeys")
   val ValCacheSize = params[Int]("valcachesize")
   val TagSize = params[Int]("tagsize")
 
-  val WordBytes = WordSize / 8
-  val CurKeyWords = KeySize / WordBytes
+  val KeyWordBytes = KeyWordSize / 8
+  val CurKeyWords = KeySize / KeyWordBytes
   val AllKeyWords = CurKeyWords * NumKeys
   val HashSize = log2Up(NumKeys)
   val KeyLenSize = log2Up(KeySize)
@@ -31,14 +31,14 @@ class KeyValueStore extends Module {
   }
 
   val lookup = Module(new LookupPipeline(
-    WordSize, KeySize, NumKeys, ValCacheSize, TagSize))
+    KeyWordSize, KeySize, NumKeys, ValCacheSize, TagSize))
   lookup.io.readKeyInfo <> Queue(io.keyInfo, 2)
   lookup.io.readKeyData <> Queue(io.keyData, 2)
   io.resultInfo <> Queue(lookup.io.resultInfo, 2)
   io.resultData <> Queue(lookup.io.resultData, 2)
 
   val ctrl = Module(new CtrlModule(
-    WordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
+    KeyWordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
   ctrl.io.rocc    <> io.rocc
   ctrl.io.keyInfo <> lookup.io.writeKeyInfo
   ctrl.io.keyData <> lookup.io.writeKeyData
