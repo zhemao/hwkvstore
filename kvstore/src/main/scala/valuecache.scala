@@ -4,23 +4,26 @@ import Chisel._
 import kvstore.TestUtils._
 import kvstore.Constants._
 
-class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
+class ValueCache(NumKeys: Int, CacheSize: Int, val WordSize: Int, TagSize: Int)
+    extends Module {
   val HashSize = log2Up(NumKeys)
-  val AddrSize = log2Up(CacheSize)
+  val WordBytes = WordSize / 8
+  val AddrSize = log2Up(CacheSize / WordBytes)
+  val LenSize = log2Up(CacheSize)
 
   val io = new Bundle {
     val hashIn = Decoupled(new HashSelection(HashSize, TagSize)).flip
     val resultInfo = Decoupled(new MessageInfo(AddrSize, TagSize))
-    val resultData = Decoupled(UInt(width = 8))
+    val resultData = Decoupled(UInt(width = WordSize))
 
     val cacheWriteAddr = UInt(INPUT, AddrSize)
-    val cacheWriteData = UInt(INPUT, 8)
+    val cacheWriteData = UInt(INPUT, WordSize)
     val cacheWriteEn = Bool(INPUT)
 
     val addrLenAddr = UInt(INPUT, HashSize)
-    val addrLenWriteData = new AddrLenPair(AddrSize, INPUT)
+    val addrLenWriteData = new AddrLenPair(AddrSize, LenSize, INPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
-    val addrLenReadData = new AddrLenPair(AddrSize, OUTPUT)
+    val addrLenReadData = new AddrLenPair(AddrSize, LenSize, OUTPUT)
     val addrLenReadEn = Bool(INPUT)
   }
 
@@ -32,11 +35,11 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
   val state = Reg(init = s_wait)
 
   val cacheMem = if (BankMems && BankSize != CacheSize) {
-    Module(new BankedMem(8, BankSize, CacheSize / BankSize))
+    Module(new BankedMem(WordSize, BankSize / WordBytes, CacheSize / BankSize))
   } else {
-    Module(new UnbankedMem(8, CacheSize))
+    Module(new UnbankedMem(WordSize, CacheSize / WordBytes))
   }
-  val cacheAddr = Reg(UInt(width = AddrSize))
+  val cacheAddr = Reg(UInt(width = AddrSize - 1))
   val cacheData = cacheMem.io.readData
   val cacheReadEn = (state === s_delay) ||
     (state === s_stream && io.resultData.ready)
@@ -69,7 +72,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 
   val AddrLookupDelay = 2
 
-  val addrLenData = new AddrLenPair(AddrSize)
+  val addrLenData = new AddrLenPair(AddrSize, LenSize)
   addrLenData.addr := addrTable.io.readData
   addrLenData.len  := lenTable.io.readData
 
@@ -78,6 +81,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 
   val tag = Reg(UInt(width = TagSize))
   val len = Reg(UInt(width = AddrSize))
+  val nextlen = Mux(len < UInt(WordBytes), UInt(0), len - UInt(WordBytes))
 
   val delayCount = Reg(UInt(width = log2Up(MemReadDelay)))
 
@@ -123,7 +127,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 
       when (delayCount === UInt(0)) {
         state := s_stream
-        len := len - UInt(1)
+        len := nextlen
       } .otherwise {
         delayCount := delayCount - UInt(1)
       }
@@ -134,7 +138,7 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
           state := s_wait
         } .otherwise {
           cacheAddr := cacheAddr + UInt(1)
-          len := len - UInt(1)
+          len := nextlen
         }
       }
     }
@@ -149,8 +153,9 @@ class ValueCache(NumKeys: Int, CacheSize: Int, TagSize: Int) extends Module {
 }
 
 class ValueCacheTest(c: ValueCache) extends Tester(c) {
-  val TestSize = 100
-  val data = (0 until TestSize).map { i => rnd.nextInt(256) }
+  val TestSize = 20
+  val data = (0 until TestSize).map { i => rnd.nextInt(1 << c.WordSize) }
+  val ByteLen = c.WordBytes * TestSize
 
   poke(c.io.cacheWriteEn, 1)
   for (i <- 0 until TestSize) {
@@ -162,7 +167,7 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
 
   poke(c.io.addrLenAddr, 0)
   poke(c.io.addrLenWriteData.addr, 0)
-  poke(c.io.addrLenWriteData.len, TestSize)
+  poke(c.io.addrLenWriteData.len, ByteLen)
   poke(c.io.addrLenWriteEn, Array[BigInt](1, 1))
   step(1)
   poke(c.io.addrLenWriteEn, Array[BigInt](0, 0))
@@ -181,15 +186,15 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
 
   expect(c.io.resultInfo.valid, 1)
   expect(c.io.resultInfo.bits.tag, 0)
-  expect(c.io.resultInfo.bits.len, TestSize)
+  expect(c.io.resultInfo.bits.len, ByteLen)
   step(1)
   poke(c.io.resultInfo.ready, 0)
   poke(c.io.resultData.ready, 1)
   step(c.MemReadDelay)
 
-  for (byte <- data) {
+  for (word <- data) {
     expect(c.io.resultData.valid, 1)
-    expect(c.io.resultData.bits, byte)
+    expect(c.io.resultData.bits, word)
     step(1)
     val delay = rnd.nextInt(10)
     if (delay > 0) {
@@ -204,7 +209,7 @@ class ValueCacheTest(c: ValueCache) extends Tester(c) {
 
 object ValueCacheMain {
   def main(args: Array[String]) {
-    chiselMain.run(args, () => new ValueCache(256, 4096, 2),
+    chiselMain.run(args, () => new ValueCache(256, 4096, 16, 2),
       (c: ValueCache) => new ValueCacheTest(c))
   }
 }

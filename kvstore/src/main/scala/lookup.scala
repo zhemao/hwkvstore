@@ -6,13 +6,15 @@ import kvstore.Constants._
 
 class LookupPipeline(
     val KeyWordSize: Int, val KeySize: Int, val NumKeys: Int,
-    ValCacheSize: Int, TagSize: Int) extends Module {
+    ValCacheSize: Int, ValWordSize: Int, TagSize: Int) extends Module {
   val KeyWordBytes = KeyWordSize / 8
   val CurKeyWords = KeySize / KeyWordBytes
   val AllKeyWords = CurKeyWords * NumKeys
   val HashSize = log2Up(NumKeys)
   val KeyLenSize = log2Up(KeySize)
-  val ValAddrSize = log2Up(ValCacheSize)
+  val ValWordBytes = ValWordSize / 8
+  val ValAddrSize = log2Up(ValCacheSize / ValWordBytes)
+  val ValLenSize = log2Up(ValCacheSize)
   val BankMems = params[Boolean]("bankmems")
   val BankSize = params[Int]("banksize")
 
@@ -32,17 +34,17 @@ class LookupPipeline(
     val hashSel = Decoupled(new HashSelection(HashSize, TagSize))
     val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize)).flip
 
-    val resultInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
-    val resultData = Decoupled(UInt(width = 8))
+    val resultInfo = Decoupled(new MessageInfo(ValLenSize, TagSize))
+    val resultData = Decoupled(UInt(width = ValWordSize))
 
     val cacheWriteAddr = UInt(INPUT, ValAddrSize)
-    val cacheWriteData = UInt(INPUT, 8)
+    val cacheWriteData = UInt(INPUT, ValWordSize)
     val cacheWriteEn = Bool(INPUT)
 
     val addrLenAddr = UInt(INPUT, HashSize)
-    val addrLenWriteData = new AddrLenPair(ValAddrSize, INPUT)
+    val addrLenWriteData = new AddrLenPair(ValAddrSize, ValLenSize, INPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(INPUT) }
-    val addrLenReadData = new AddrLenPair(ValAddrSize, OUTPUT)
+    val addrLenReadData = new AddrLenPair(ValAddrSize, ValLenSize, OUTPUT)
     val addrLenReadEn = Bool(INPUT)
 
     val keyLenAddr = UInt(INPUT, HashSize)
@@ -116,7 +118,8 @@ class LookupPipeline(
     swapped := !swapped
   }
 
-  val valcache = Module(new ValueCache(NumKeys, ValCacheSize, TagSize))
+  val valcache = Module(
+    new ValueCache(NumKeys, ValCacheSize, ValWordSize, TagSize))
   valcache.io.resultInfo       <> io.resultInfo
   valcache.io.resultData       <> io.resultData
   valcache.io.cacheWriteAddr   <> io.cacheWriteAddr
@@ -145,17 +148,24 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
   def writeValue(hash: BigInt, start: Int, value: String) {
     isTrace = false
+
+    val (realstart, words) = if (c.ValWordBytes == 2) {
+      (start / 2, messToWords(value, 2))
+    } else {
+      (start, value.getBytes.map(b => BigInt(b.intValue & 0xff)))
+    }
+
     poke(c.io.addrLenAddr, hash)
-    poke(c.io.addrLenWriteData.addr, start)
+    poke(c.io.addrLenWriteData.addr, realstart)
     poke(c.io.addrLenWriteData.len, value.length)
     poke(c.io.addrLenWriteEn, Array[BigInt](1, 1))
     step(1)
     poke(c.io.addrLenWriteEn, Array[BigInt](0, 0))
 
     poke(c.io.cacheWriteEn, 1)
-    for (i <- 0 until value.length) {
-      poke(c.io.cacheWriteAddr, start + i)
-      poke(c.io.cacheWriteData, value(i))
+    for (i <- 0 until words.length) {
+      poke(c.io.cacheWriteAddr, realstart + i)
+      poke(c.io.cacheWriteData, words(i))
       step(1)
     }
     poke(c.io.cacheWriteEn, 0)
@@ -193,6 +203,8 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
       step(1)
     isTrace = true
 
+    val words = messToWords(value, c.ValWordBytes)
+
     expect(c.io.resultInfo.bits.len, value.length)
     expect(c.io.resultInfo.bits.tag, tag)
     val keyFound = peek(c.io.resultInfo.bits.len) != 0
@@ -204,11 +216,11 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     if (keyFound) {
       poke(c.io.resultData.ready, 1)
 
-      for (ch <- value) {
+      for (w <- words) {
         while (peek(c.io.resultData.valid) == 0)
           step(1)
         expect(c.io.resultData.valid, 1)
-        expect(c.io.resultData.bits, ch)
+        expect(c.io.resultData.bits, w)
         step(1)
       }
 
@@ -270,6 +282,8 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
     hash
   }
 
+  def roundup(num: Int) = if (num % 2 == 0) num else num + 1
+
   val key1 = "abcdefghijklmnopqrstuvwxyz"
   val key2 = "abcdefghijklmnopqrstuvwxzy"
   val key3 = "0123456789"
@@ -290,8 +304,8 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
   printf("hashes: %d %d %d\n", hash1, hash2, hash3)
 
   writeValue(hash1, 0, value1)
-  writeValue(hash2, value1.length, value2)
-  writeValue(hash3, value1.length + value2.length, value3)
+  writeValue(hash2, roundup(value1.length), value2)
+  writeValue(hash3, roundup(value1.length) + roundup(value2.length), value3)
 
   poke(c.io.writemode, 0)
   poke(c.io.findAvailable, 0)
@@ -315,7 +329,7 @@ class LookupPipelineTest(c: LookupPipeline) extends Tester(c) {
 
 object LookupPipelineMain {
   def main(args: Array[String]) {
-    chiselMain.run(args, () => new LookupPipeline(32, 256, 32, 1024, 4),
+    chiselMain.run(args, () => new LookupPipeline(32, 256, 32, 1024, 16, 4),
       (c: LookupPipeline) => new LookupPipelineTest(c))
   }
 }
