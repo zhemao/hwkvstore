@@ -121,12 +121,12 @@ class MemoryHandler(ValWordSize: Int, ValLenSize: Int, KeyAddrSize: Int)
         byteOff := byteOff + UInt(ValWordBytes)
       }
 
-      when (bytesread === len - UInt(3)) {
-        // stay in the same state
-      } .elsewhen (bytesread === len - UInt(2) || bytesread === len - UInt(1)) {
+      when (bytesread === len - UInt(2) || bytesread === len - UInt(1)) {
         state := s_finish
       } .elsewhen (byteOff === UInt(BytesPerInputWord - 2)) {
         state := s_req_data
+      } .elsewhen (bytesread === len - UInt(3)) {
+        // stay in the same state
       } .elsewhen (byteOff === UInt(BytesPerInputWord - 3)) {
         state := s_req_data
       }
@@ -158,18 +158,6 @@ class MemoryHandler(ValWordSize: Int, ValLenSize: Int, KeyAddrSize: Int)
           } .otherwise {
             state := s_shift_bytes
           }
-        } .elsewhen (byword && initByteOff === UInt(BytesPerInputWord - 1)) {
-          state := s_req_data
-          bytesread := bytesread + UInt(1)
-          when (len === UInt(1)) {
-            word := Cat(UInt(0, coreDataBits - 8),
-              io.mem.resp.bits.data(coreDataBits - 1, coreDataBits - 8))
-            state := s_shift_words
-          } .otherwise {
-            savedByte := io.mem.resp.bits.data(
-              coreDataBits - 1, coreDataBits - 8)
-            initshift := UInt(0)
-          }
         } .otherwise {
           state := s_init_shift
         }
@@ -180,7 +168,13 @@ class MemoryHandler(ValWordSize: Int, ValLenSize: Int, KeyAddrSize: Int)
       byteOff := initByteOff
       initshift := UInt(0)
       when (byword) {
-        state := s_shift_words
+        when (len != UInt(1) && initByteOff === UInt(BytesPerInputWord - 1)) {
+          savedByte := word(coreDataBits - 1, coreDataBits - 8)
+          bytesread := bytesread + UInt(1)
+          state := s_req_data
+        } .otherwise {
+          state := s_shift_words
+        }
       } .otherwise {
         state := s_shift_bytes
       }
