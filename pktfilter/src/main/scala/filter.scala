@@ -2,6 +2,7 @@ package pktfilter
 
 import Chisel._
 import kvstore.MessageInfo
+import kvstore.TestUtils._
 import pktfilter.Constants._
 
 class PacketFilter extends Module {
@@ -10,6 +11,7 @@ class PacketFilter extends Module {
   val TagSize = params[Int]("tagsize")
   val BufferSize = params[Int]("bufsize")
   val AddrSize = log2Up(BufferSize)
+  val ResultWidth = params[Int]("valwordsize")
 
   val io = new Bundle {
     val temac_rx = Stream(UInt(width = 8)).flip
@@ -19,7 +21,7 @@ class PacketFilter extends Module {
     val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
     val resultInfo = Decoupled(new MessageInfo(ValLenSize, TagSize)).flip
-    val resultData = Decoupled(UInt(width = 8)).flip
+    val resultData = Decoupled(UInt(width = ResultWidth)).flip
     val readready = Bool(INPUT)
   }
 
@@ -101,7 +103,8 @@ class PacketFilter extends Module {
   val srcMac  = Vec.fill(6) { Reg(UInt(width = 8)) }
   val dstMac  = Vec.fill(6) { Reg(UInt(width = 8)) }
   val reqId   = Reg(UInt(width = 16))
-  val curRoute = RoutingInfo(srcAddr, srcPort, dstAddr, dstPort, reqId, srcMac, dstMac)
+  val curRoute = RoutingInfo(
+    srcAddr, srcPort, dstAddr, dstPort, reqId, srcMac, dstMac)
 
   switch (m_state) {
     is (m_idle) {
@@ -387,8 +390,11 @@ class PacketFilter extends Module {
   io.resultInfo.ready := (d_state === d_idle)
 
   val ResponderCacheSize = params[Int]("respcachesize")
-  val responder = Module(new Responder(AddrSize, ResponderCacheSize))
-  responder.io.resultData <> io.resultData
+  val responder = Module(new Responder(AddrSize, ResponderCacheSize, ResultWidth))
+  if (ResultWidth == 8)
+    responder.io.resultData <> io.resultData
+  else
+    responder.io.resultData <> ByteSwapper(io.resultData, ResultWidth)
   responder.io.resLen := resLen
   responder.io.pktRoute := reqPktRoute
   responder.io.start := (d_state === d_resp)
@@ -520,6 +526,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
   }
 
   def sendResult(result: String, tag: Int) {
+    val resultWords = messToWords(result, c.ResultWidth / 8)
+
     waitUntil(c.io.resultInfo.ready, 10)
     poke(c.io.resultInfo.valid, 1)
     poke(c.io.resultInfo.bits.tag, tag)
@@ -530,8 +538,8 @@ class PacketFilterTest(c: PacketFilter) extends Tester(c) {
     if (result.length > 0) {
       waitUntil(c.io.resultData.ready, 100)
       poke(c.io.resultData.valid, 1)
-      for (ch <- result) {
-        poke(c.io.resultData.bits, ch)
+      for (w <- resultWords) {
+        poke(c.io.resultData.bits, w)
         step(1)
         waitUntil(c.io.resultData.ready, 10)
       }

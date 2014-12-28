@@ -2,9 +2,9 @@ package pktfilter
 
 import Chisel._
 
-class ChecksumCompute(LenSize: Int) extends Module {
+class ChecksumCompute(LenSize: Int, val DataWidth: Int) extends Module {
   val io = new Bundle {
-    val data = Decoupled(UInt(width = 8)).flip
+    val data = Decoupled(UInt(width = DataWidth)).flip
     val len = Decoupled(UInt(width = LenSize)).flip
     val result = Decoupled(UInt(width = 16))
   }
@@ -31,14 +31,21 @@ class ChecksumCompute(LenSize: Int) extends Module {
     }
     is (s_higher) {
       when (io.data.valid) {
-        highbyte := io.data.bits
-        length := length - UInt(1)
+        length := length - UInt(DataWidth / 8)
+        if (DataWidth == 8) {
+          highbyte := io.data.bits
 
-        when (length === UInt(1)) {
-          cursum := cursum + Cat(io.data.bits, UInt(0, 8))
-          state := s_fold
-        } .otherwise {
-          state := s_lower
+          when (length === UInt(1)) {
+            cursum := cursum + Cat(io.data.bits, UInt(0, 8))
+            state := s_fold
+          } .otherwise {
+            state := s_lower
+          }
+        } else {
+          cursum := cursum + io.data.bits
+          when (length <= UInt(2)) {
+            state := s_fold
+          }
         }
       }
     }
@@ -72,6 +79,13 @@ class ChecksumCompute(LenSize: Int) extends Module {
 
 object ChecksumUtils {
   def computeChecksum(data: Array[Byte]): Int = {
+    val words = collectWords(data)
+    var checksum = words.foldLeft(0){_ + _}
+    checksum = (checksum >> 16) + (checksum & 0xffff)
+    ~checksum & 0xffff
+  }
+
+  def collectWords(data: Array[Byte]): Array[Int] = {
     val numWords = (data.length - 1) / 2 + 1
     val words = new Array[Int](numWords)
 
@@ -82,9 +96,7 @@ object ChecksumUtils {
       words(i) = (high << 8) | low
     }
 
-    var checksum = words.foldLeft(0){_ + _}
-    checksum = (checksum >> 16) + (checksum & 0xffff)
-    ~checksum & 0xffff
+    words
   }
 }
 
@@ -93,6 +105,9 @@ import ChecksumUtils._
 class ChecksumComputeTest(c: ChecksumCompute) extends Tester(c) {
   val bytes = Array.fill(99) { (rnd.nextInt & 0xff).byteValue }
   val checksum = computeChecksum(bytes)
+  val words = if (c.DataWidth == 8)
+    bytes.map(b => b.intValue & 0xff)
+  else collectWords(bytes)
 
   expect(c.io.len.ready, 1)
   poke(c.io.len.bits, bytes.length)
@@ -102,9 +117,8 @@ class ChecksumComputeTest(c: ChecksumCompute) extends Tester(c) {
 
   poke(c.io.data.valid, 1)
 
-  for (b <- bytes) {
+  for (w <- words) {
     expect(c.io.data.ready, 1)
-    val w = b.intValue & 0xff
     poke(c.io.data.bits, w)
     step(1)
   }
@@ -121,7 +135,7 @@ class ChecksumComputeTest(c: ChecksumCompute) extends Tester(c) {
 
 object ChecksumComputeMain {
   def main(args: Array[String]) {
-    chiselMain.run(args, () => new ChecksumCompute(8),
+    chiselMain.run(args, () => new ChecksumCompute(8, 16),
       (c: ChecksumCompute) => new ChecksumComputeTest(c))
   }
 }

@@ -50,6 +50,8 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
   val memory = new RandomMemory(64, 64*64*2, 
     MemReq_OHandler.outputs, MemResp_IHandler.inputs)
 
+  def roundup(num: Int) = if (num % 2 == 0) num else num + 1
+
   var accelAddr = 0
 
   def setKey(key: String, value: String) {
@@ -79,7 +81,7 @@ class PacketTest(c: PacketTestSetup) extends AdvTester(c) {
     Cmd_IHandler.inputs.enqueue(TestCmd(assocLen,  hash, value.length))
     Cmd_IHandler.inputs.enqueue(TestCmd(writeVal,  hash, key.length))
     Cmd_IHandler.inputs.enqueue(TestCmd(readMode))
-    accelAddr += value.length
+    accelAddr += roundup(value.length)
 
     until (Cmd_IHandler.isIdle && !isBusy, 450) {
       memory.process()
