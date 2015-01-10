@@ -6,39 +6,42 @@ import kvstore.TestUtils._
 import kvstore.Constants._
 
 class KeyValueStore extends Module {
-  val WordSize = params[Int]("wordsize")
+  val KeyWordSize = params[Int]("keywordsize")
   val KeySize = params[Int]("keysize")
   val NumKeys = params[Int]("numkeys")
   val ValCacheSize = params[Int]("valcachesize")
+  val ValWordSize = params[Int]("valwordsize")
   val TagSize = params[Int]("tagsize")
 
-  val WordBytes = WordSize / 8
-  val CurKeyWords = KeySize / WordBytes
+  val KeyWordBytes = KeyWordSize / 8
+  val ValWordBytes = ValWordSize / 8
+  val CurKeyWords = KeySize / KeyWordBytes
   val AllKeyWords = CurKeyWords * NumKeys
   val HashSize = log2Up(NumKeys)
   val KeyLenSize = log2Up(KeySize)
-  val ValAddrSize = log2Up(ValCacheSize)
+  val ValAddrSize = log2Up(ValCacheSize / ValWordBytes)
+  val ValLenSize = log2Up(ValCacheSize)
   val KeyAddrSize = log2Up(AllKeyWords)
 
   val io = new Bundle {
     val keyInfo = Decoupled(new MessageInfo(KeyLenSize, TagSize)).flip
     val keyData = Decoupled(UInt(width = 8)).flip
     val resultInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
-    val resultData = Decoupled(UInt(width = 8))
+    val resultData = Decoupled(UInt(width = ValWordSize))
     val writeready = Bool(OUTPUT)
     val readready  = Bool(OUTPUT)
     val rocc = new RoCCInterface
   }
 
   val lookup = Module(new LookupPipeline(
-    WordSize, KeySize, NumKeys, ValCacheSize, TagSize))
+    KeyWordSize, KeySize, NumKeys, ValCacheSize, ValWordSize, TagSize))
   lookup.io.readKeyInfo <> Queue(io.keyInfo, 2)
   lookup.io.readKeyData <> Queue(io.keyData, 2)
   io.resultInfo <> Queue(lookup.io.resultInfo, 2)
   io.resultData <> Queue(lookup.io.resultData, 2)
 
   val ctrl = Module(new CtrlModule(
-    WordSize, ValAddrSize, KeyLenSize, HashSize, TagSize))
+    KeyWordSize, ValWordSize, ValLenSize, KeyLenSize, HashSize, TagSize))
   ctrl.io.rocc    <> io.rocc
   ctrl.io.keyInfo <> lookup.io.writeKeyInfo
   ctrl.io.keyData <> lookup.io.writeKeyData
@@ -183,6 +186,8 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
   }
 
   def checkResult(value: String, tag: Int) {
+    val words = messToWords(value, c.ValWordBytes)
+
     until (peek(c.io.resultInfo.valid) == 1, 450) {}
 
     expect(c.io.resultInfo.bits.len, value.length)
@@ -194,9 +199,9 @@ class KeyValueStoreTest(c: KeyValueStore) extends AdvTester(c) {
     wire_poke(c.io.resultInfo.ready, 0)
     wire_poke(c.io.resultData.ready, 1)
 
-    for (ch <- value) {
+    for (w <- words) {
       until(peek(c.io.resultData.valid) == 1, 10) {}
-      expect(c.io.resultData.bits, ch)
+      expect(c.io.resultData.bits, w)
       takestep()
     }
 

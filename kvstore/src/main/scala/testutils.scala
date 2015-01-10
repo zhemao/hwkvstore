@@ -3,9 +3,12 @@ package kvstore
 import Chisel._
 
 object TestUtils {
-  def messToWords(mess: String, wordbytes: Int, offset: Int = 0): Array[BigInt] = {
-    val padding = "".padTo(offset, 0.toChar)
-    val paddedMess = padding + mess
+  def messToWords(mess: String, wordbytes: Int, offset: Int = 0): Array[BigInt] =
+    bytesToWords(mess.getBytes, wordbytes, offset)
+
+  def bytesToWords(mess: Array[Byte], wordbytes: Int, offset: Int = 0): Array[BigInt] = {
+    val padding = Array.fill(offset) { 0.byteValue }
+    val paddedMess = padding ++ mess
     val numWords = (paddedMess.length - 1) / wordbytes + 1
     val messWords = new Array[BigInt](numWords)
     var word = BigInt(0)
@@ -13,7 +16,7 @@ object TestUtils {
     for (i <- 0 until paddedMess.length / wordbytes) {
       word = BigInt(0)
       for (j <- 0 until wordbytes) {
-        val byte = BigInt(paddedMess(i * wordbytes + j))
+        val byte = BigInt(paddedMess(i * wordbytes + j).intValue & 0xff)
         word |= byte << (8 * j)
       }
       messWords(i) = word
@@ -23,7 +26,7 @@ object TestUtils {
       word = BigInt(0)
       val lastChunk = (messWords.length - 1) * wordbytes
       for (j <- 0 until paddedMess.length % wordbytes) {
-        val byte = BigInt(paddedMess(lastChunk + j))
+        val byte = BigInt(paddedMess(lastChunk + j).intValue & 0xff)
         word |= byte << (8 * j)
       }
       messWords(messWords.length - 1) = word

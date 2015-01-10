@@ -3,21 +3,24 @@ package kvstore
 import Chisel._
 import kvstore.Constants._
 
-class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
-    HashSize: Int, TagSize: Int) extends Module with CoreParameters {
-  val ByteShift = log2Up(WordSize) - 3
+class CtrlModule(KeyWordSize: Int, ValWordSize: Int, ValLenSize: Int,
+    KeyLenSize: Int, HashSize: Int, TagSize: Int)
+      extends Module with CoreParameters {
+  val ByteShift = log2Up(KeyWordSize) - 3
   val KeyAddrSize = KeyLenSize - ByteShift
+  val ValWordShift = log2Up(ValWordSize) - 3
+  val ValAddrSize = ValLenSize - ValWordShift
   val io = new Bundle {
     val rocc = new RoCCInterface
 
     val cacheWriteAddr = UInt(OUTPUT, ValAddrSize)
-    val cacheWriteData = UInt(OUTPUT, 8)
+    val cacheWriteData = UInt(OUTPUT, ValWordSize)
     val cacheWriteEn = Bool(OUTPUT)
 
     val addrLenAddr = UInt(OUTPUT, HashSize)
-    val addrLenWriteData = new AddrLenPair(ValAddrSize, OUTPUT)
+    val addrLenWriteData = new AddrLenPair(ValAddrSize, ValLenSize, OUTPUT)
     val addrLenWriteEn = Vec.fill(2) { Bool(OUTPUT) }
-    val addrLenReadData = new AddrLenPair(ValAddrSize, INPUT)
+    val addrLenReadData = new AddrLenPair(ValAddrSize, ValLenSize, INPUT)
     val addrLenReadEn = Bool(OUTPUT)
 
     val keyLenAddr = UInt(OUTPUT, HashSize)
@@ -30,7 +33,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
     val findAvailable = Bool(OUTPUT)
     val resetCounts = Bool(OUTPUT)
 
-    val keyInfo = Decoupled(new MessageInfo(ValAddrSize, TagSize))
+    val keyInfo = Decoupled(new MessageInfo(ValLenSize, TagSize))
     val keyData = Decoupled(UInt(width = 8))
     val hashSel = Decoupled(new HashSelection(HashSize, TagSize)).flip
     val copyReq = Decoupled(new CopyRequest(HashSize, KeyLenSize))
@@ -73,7 +76,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   val memCmdValid = (state === s_stream_key || state === s_stream_value)
 
   val memhandler = Module(
-    new MemoryHandler(ValAddrSize, KeyAddrSize))
+    new MemoryHandler(ValWordSize, ValLenSize, KeyAddrSize))
   memhandler.io.keyData <> io.keyData
   memhandler.io.mem     <> io.rocc.mem
   memhandler.io.cacheWriteAddr <> io.cacheWriteAddr
@@ -86,7 +89,7 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
   memhandler.io.cmd.bits.action := action
 
   val hash = Reg(init = UInt(0, HashSize))
-  val addrLenData = Reg(new AddrLenPair(ValAddrSize))
+  val addrLenData = Reg(new AddrLenPair(ValAddrSize, ValLenSize))
   val setLen = Reg(init = Bits("b001", 3))
 
   io.addrLenReadEn := (state === s_waitaddrlen)
@@ -161,13 +164,13 @@ class CtrlModule(WordSize: Int, ValAddrSize: Int, KeyLenSize: Int,
             findAvailable := Bool(true)
           }
           is (AssocAddrInst) {
-            hash := io.rocc.cmd.bits.rs1
-            addrLenData.addr := io.rocc.cmd.bits.rs2
+            hash := io.rocc.cmd.bits.rs1(HashSize - 1, 0)
+            addrLenData.addr := io.rocc.cmd.bits.rs2(ValLenSize - 1, ValWordShift)
             setLen := Bits("b010")
           }
           is (AssocLenInst) {
-            hash := io.rocc.cmd.bits.rs1
-            addrLenData.len := io.rocc.cmd.bits.rs2
+            hash := io.rocc.cmd.bits.rs1(HashSize - 1, 0)
+            addrLenData.len := io.rocc.cmd.bits.rs2(ValLenSize - 1, 0)
             setLen := Bits("b100")
           }
           is (WriteValInst) {

@@ -14,10 +14,11 @@ class BaseConfig extends ChiselConfig {
   }
   override val topDefinitions:World.TopDefs = {
     (pname,site,here) => pname match {
-      case "wordsize" => Knob("wordsize")
+      case "keywordsize" => Knob("keywordsize")
       case "keysize"  => 256
       case "numkeys"  => Knob("numkeys")
       case "valcachesize" => Knob("valcachesize")
+      case "valwordsize" => Knob("valwordsize")
       case "banksize" => Knob("banksize")
       case "tagsize" => 6
       case "countsize" => 4
@@ -27,7 +28,8 @@ class BaseConfig extends ChiselConfig {
     }
   }
   override val topConstraints:List[ViewSym=>Ex[Boolean]] = List(
-    ex => isPowerOfTwo(ex[Int]("wordsize"), 8, 64),
+    ex => isPowerOfTwo(ex[Int]("keywordsize"), 8, 64),
+    ex => isPowerOfTwo(ex[Int]("valwordsize"), 8, 16),
     ex => isPowerOfTwo(ex[Int]("numkeys"), 32, 1024),
     ex => isPowerOfTwo(ex[Int]("valcachesize"), 1024, 1024 * 1024),
     ex => isPowerOfTwo(ex[Int]("maxfanin"), 4, 32),
@@ -37,9 +39,10 @@ class BaseConfig extends ChiselConfig {
 
 class VlsiConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
-    case "wordsize" => 32
+    case "keywordsize" => 32
     case "numkeys" => 64
     case "valcachesize" => 32 * 1024
+    case "valwordsize" => 16
     case "maxfanin" => 16
     case "bankmems" => true
     case "banksize" => 256
@@ -49,9 +52,10 @@ class VlsiConfig extends BaseConfig {
 
 class EmulatorConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
-    case "wordsize" => 32
+    case "keywordsize" => 32
     case "numkeys" => 256
     case "valcachesize" => 128 * 1024
+    case "valwordsize" => 16
     case "maxfanin" => 32
     case "bankmems" => true
     case "banksize" => 1024
@@ -61,9 +65,10 @@ class EmulatorConfig extends BaseConfig {
 
 class FpgaConfig extends BaseConfig {
   override val knobValues:Any=>Any = {
-    case "wordsize" => 32
+    case "keywordsize" => 32
     case "numkeys" => 1024
     case "valcachesize" => 512 * 1024
+    case "valwordsize" => 16
     case "maxfanin" => 32
     case "bankmems" => false
     case "banksize" => 1024

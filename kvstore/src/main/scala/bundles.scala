@@ -32,13 +32,13 @@ class HashSelection(val HashSize: Int, val TagSize: Int,
     (new HashSelection(HashSize, TagSize, dir)).asInstanceOf[this.type]
 }
 
-class AddrLenPair(val AddrSize: Int, val dir: IODirection = OUTPUT)
-    extends Bundle {
+class AddrLenPair(val AddrSize: Int, val LenSize: Int,
+    val dir: IODirection = OUTPUT) extends Bundle {
   val addr = UInt(dir, AddrSize)
-  val len  = UInt(dir, AddrSize)
+  val len  = UInt(dir, LenSize)
 
   override def clone =
-    (new AddrLenPair(AddrSize, dir)).asInstanceOf[this.type]
+    (new AddrLenPair(AddrSize, LenSize, dir)).asInstanceOf[this.type]
 }
 
 class MemCommand(val ReadAddrSize: Int, val WriteAddrSize: Int,
