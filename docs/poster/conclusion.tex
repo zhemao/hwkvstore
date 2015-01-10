@@ -3,7 +3,8 @@
 \begin{itemize}
     \item By moving some of the keys to the accelerator and serving directly
         to the NIC from hardware, we gained an order of magnitude speed-up
-        over memcached software running on the Rocket core.
+        over memcached software running on the Rocket core (1700$\mu$s vs 150$\mu$s response latency).
+    \item Able to serve 40\% of keys at this reduced latency for Facebook ETC benchmark
     \item However, we still have a long way to go before reaching
         production quality.
 \end{itemize}
